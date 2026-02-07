@@ -110,8 +110,6 @@ create_folders:
 
 # =============================================================================
 # Additional Dotfiles Symlinks (via dotfiles role)
-# Removed: hyprland, waybar, wofi, dunst, fontconfig, cool-retro-term, nvim,
-#          ghostty/config (now managed by Omarchy theme system)
 # =============================================================================
 dotfiles_links:
   - { src: "zsh/.zshrc", dest: ".zshrc" }
