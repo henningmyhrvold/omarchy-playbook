@@ -46,6 +46,7 @@ git_repositories_external: []
 pacman_installed_packages:
   # --- Additional CLI Tools ---
   - wget
+  - jq
   - tree
   - lsof
   - smartmontools
@@ -58,6 +59,7 @@ pacman_installed_packages:
   - nmap
   - tcpdump
   - wireshark-cli
+  - wireguard-tools
   # --- Additional Programming ---
   - python-uv
   - terraform
