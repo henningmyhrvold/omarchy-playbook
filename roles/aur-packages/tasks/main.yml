@@ -2,7 +2,7 @@
 - name: Allow target user to run pacman without password (for AUR)
   ansible.builtin.lineinfile:
     path: /etc/sudoers.d/aur-temp
-    line: "{{ ansible_facts['user_id'] }} ALL=(ALL) NOPASSWD: /usr/bin/pacman *"
+    line: "{{ ansible_facts['user_id'] }} ALL=(ALL) NOPASSWD: /usr/bin/pacman"
     create: true
     mode: '0440'
     validate: /usr/sbin/visudo -cf %s
