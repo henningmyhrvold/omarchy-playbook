@@ -40,7 +40,6 @@
     # MCP Servers (Docker-based)
     - { role: mcp_filesystem, tags: ["mcp", "mcp-filesystem"], when: mcp_filesystem_enabled | default(true) }
     - { role: mcp_ref, tags: ["mcp", "mcp-ref"], when: mcp_ref_enabled | default(true) }
-    - { role: mcp_hub_ui, tags: ["mcp", "mcp-hub-ui"] }
     - { role: docker_mcp, tags: ["mcp", "docker-mcp"] }
 
     # Utility (dotfiles, folders, extra links)

@@ -84,6 +84,7 @@ pacman_installed_packages:
 aur_installed_packages:
   - zen-browser-bin
   - google-chrome
+  - lazydocker
   - omnissa-horizon-client
   - cool-retro-term
   - tio
