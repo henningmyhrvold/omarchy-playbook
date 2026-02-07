@@ -44,14 +44,6 @@ git_repositories_external: []
 #   fzf, fd, bat, ripgrep, htop, unzip, curl, fastfetch, jq
 # =============================================================================
 pacman_installed_packages:
-  # --- Graphics Drivers ---
-  - mesa
-  # --- GNOME Apps ---
-  - nautilus
-  - loupe
-  - gnome-calendar
-  - gnome-calculator
-  - showtime
   # --- Additional CLI Tools ---
   - wget
   - tree
@@ -61,25 +53,14 @@ pacman_installed_packages:
   - fwupd
   - pacman-contrib
   # --- Networking ---
-  - wireless_tools
-  - wpa_supplicant
-  - network-manager-applet
   - openssh
   - openssl
   - nmap
   - tcpdump
   - wireshark-cli
   # --- Additional Programming ---
-  - lua
-  - stylua
-  - go
   - python-uv
-  - python-dateutil
-  - python-requests
-  - python-gobject
-  - direnv
   - terraform
-  - tk
   # --- Productivity ---
   - gedit
   - vlc
@@ -157,21 +138,12 @@ dns_configure_networkmanager: true
 hwdev_openwrt_tooling: true
 
 # =============================================================================
-# MCP Configuration Overrides (Claude Desktop)
-# =============================================================================
-filesystem_allowed_directories:
-  - "/home/henning/src/omarchy-dotfiles"
-  - "/home/henning/src/omarchy-playbook"
-
-# =============================================================================
 # MCP Configuration Overrides (Claude Code)
 # =============================================================================
 mcp_filesystem_allowed_dirs:
   - "/home/henning/src"
   - "/home/henning/projects"
   - "/home/henning/Documents"
-
-mcp_obsidian_vault_path: "/home/henning/Documents/ObsidianVault"
 
 mcp_semgrep_scan_dirs:
   - "/home/henning/src"
