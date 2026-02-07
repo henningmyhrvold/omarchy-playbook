@@ -11,10 +11,12 @@ if [ ! -d "$HOME/.local/share/omarchy" ]; then
     exit 1
 fi
 
-# Install Ansible if not present (yay is Omarchy's AUR helper)
+# Install Ansible if not present
+# Use sudo pacman (ansible is in the official extra repo, not AUR)
 if ! command -v ansible &> /dev/null; then
     echo "Installing Ansible..."
-    yay -S --noconfirm ansible
+    sudo pacman -S --noconfirm --needed ansible python-packaging
+    hash -r  # refresh shell's command cache so ansible-galaxy is found
 fi
 
 # Create SSH key if needed
