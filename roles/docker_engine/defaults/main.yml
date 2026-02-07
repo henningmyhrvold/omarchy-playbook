@@ -1,0 +1,17 @@
+---
+docker_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+docker_pacman_packages:
+  - docker
+  - docker-compose
+  - docker-buildx
+  - python
+  - python-pip
+  - python-requests
+  - python-docker
+docker_users:
+  - "{{ docker_user }}"
+docker_manage_daemon_json: true
+docker_enable_buildkit: true
+docker_daemon_json_extra: {}
+docker_service_name: docker.service
+docker_service_enabled: true

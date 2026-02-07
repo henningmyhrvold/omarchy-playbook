@@ -1,0 +1,28 @@
+# docker-compose.mcp-filesystem.yml.j2
+# Managed by Ansible
+
+services:
+  {{ mcp_filesystem_container_name }}:
+    image: {{ mcp_filesystem_image }}
+    container_name: {{ mcp_filesystem_container_name }}
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install -g {{ mcp_filesystem_npm_package }} && exec npx {{ mcp_filesystem_npm_package }}{% for dir in mcp_filesystem_allowed_dirs %} {{ dir }}{% endfor %}"
+    volumes:
+{% for dir in mcp_filesystem_allowed_dirs %}
+      - {{ dir }}:{{ dir }}:rw
+{% endfor %}
+    stdin_open: true
+    tty: true
+{% if mcp_network_mode == 'host' %}
+    network_mode: host
+{% else %}
+    networks:
+      - {{ mcp_docker_network }}
+{% endif %}
+
+{% if mcp_network_mode != 'host' %}
+networks:
+  {{ mcp_docker_network }}:
+    external: true
+{% endif %}

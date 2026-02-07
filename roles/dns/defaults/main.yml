@@ -1,0 +1,11 @@
+---
+dns_provider: "systemd-resolved"
+dns_remove_conflicts: true
+dns_configure_networkmanager: true
+dns_resolved_stub: "/run/systemd/resolve/stub-resolv.conf"
+dns_fallback_nameservers:
+  - "1.1.1.1"
+  - "9.9.9.9"
+wg_conf_dir: "/etc/wireguard"
+wg_interface: "wg0"
+dns_fail_if_wg_dns_without_provider: true

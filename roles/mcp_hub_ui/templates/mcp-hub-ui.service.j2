@@ -1,0 +1,16 @@
+# roles/mcp_hub_ui/templates/mcp-hub-ui.service.j2
+[Unit]
+Description=MCP Hub UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/mcp-hub ui --config /home/henning/.config/mcp/hub.json --port 7801 --host 127.0.0.1 --no-open
+Restart=on-failure
+RestartSec=2
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+WorkingDirectory=%h
+
+[Install]
+WantedBy=default.target

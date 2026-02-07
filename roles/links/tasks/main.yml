@@ -1,0 +1,31 @@
+---
+# Links Role - Creates symlinks from config.yml (regular_links variable)
+
+# Task for user-owned paths
+- name: Link files with full paths in user directories
+  ansible.builtin.file:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    state: link
+    force: true
+    owner: "{{ target_user }}"
+    mode: "0644"
+  loop: "{{ regular_links | selectattr('dest', 'match', '^/home/') | list }}"
+  become: true
+  become_user: "{{ target_user }}"
+  when: regular_links is defined
+  tags: ["links", "symlink"]
+
+# Task for system paths
+- name: Link files with full paths in system directories
+  ansible.builtin.file:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    state: link
+    force: true
+    owner: root
+    mode: "0644"
+  loop: "{{ regular_links | selectattr('dest', 'match', '^/usr/|^/etc/') | list }}"
+  become: true
+  when: regular_links is defined
+  tags: ["links", "symlink"]

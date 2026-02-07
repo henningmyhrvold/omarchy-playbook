@@ -1,0 +1,148 @@
+---
+# ZSH Role — Omarchy-adapted tasks
+# Installs Zsh, Oh-My-Zsh, Powerlevel10k, and configures everything
+# Does NOT change default shell — Ghostty launches zsh via its config
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install Zsh packages from pacman
+  community.general.pacman:
+    name: "{{ zsh_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["zsh", "packages"]
+
+- name: Check if yay is installed (for AUR)
+  ansible.builtin.command: which yay
+  register: yay_check
+  changed_when: false
+  failed_when: false
+  tags: ["zsh", "packages"]
+
+# Temporarily allow passwordless pacman for AUR installation
+- name: Allow target user to run pacman without password (for AUR)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/zsh-aur-temp
+    line: '{{ zsh_user }} ALL=(ALL) NOPASSWD: /usr/bin/pacman *'
+    create: true
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+  become: true
+  when: yay_check.rc == 0
+  tags: ["zsh", "packages"]
+
+- name: Install Zsh packages from AUR
+  kewlfft.aur.aur:
+    name: "{{ item }}"
+    use: yay
+    state: present
+  loop: "{{ zsh_aur_packages }}"
+  become: true
+  become_user: "{{ zsh_user }}"
+  when: yay_check.rc == 0
+  tags: ["zsh", "packages"]
+
+- name: Remove temporary sudoers rule for AUR
+  ansible.builtin.file:
+    path: /etc/sudoers.d/zsh-aur-temp
+    state: absent
+  become: true
+  when: yay_check.rc == 0
+  tags: ["zsh", "packages"]
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Create Zsh directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ zsh_user }}"
+    group: "{{ zsh_user }}"
+    mode: "0755"
+  loop: "{{ zsh_folders }}"
+  become: true
+  become_user: "{{ zsh_user }}"
+  tags: ["zsh", "folders"]
+
+# =============================================================================
+# Dotfiles Repository
+# =============================================================================
+- name: Clone dotfiles repository for Zsh configs
+  ansible.builtin.git:
+    repo: "{{ zsh_dotfiles_repo }}"
+    dest: "{{ zsh_dotfiles_dest }}"
+    version: "{{ zsh_dotfiles_version }}"
+    force: false
+    update: false
+  become: true
+  become_user: "{{ zsh_user }}"
+  ignore_errors: true
+  tags: ["zsh", "dotfiles"]
+
+# NOTE: chsh removed — bash stays as login shell, Ghostty launches zsh
+
+# =============================================================================
+# Symlinks
+# =============================================================================
+- name: Create Zsh config symlinks
+  ansible.builtin.file:
+    src: "{{ zsh_dotfiles_dest }}/{{ item.src }}"
+    dest: "{{ zsh_home }}/{{ item.dest }}"
+    state: link
+    force: true
+    owner: "{{ zsh_user }}"
+  loop: "{{ zsh_links }}"
+  become: true
+  become_user: "{{ zsh_user }}"
+  when: zsh_dotfiles_dest is defined
+  tags: ["zsh", "symlinks"]
+
+# =============================================================================
+# Permissions Fix for Powerlevel10k
+# =============================================================================
+- name: Ensure powerlevel10k theme directory has correct permissions
+  ansible.builtin.file:
+    path: /usr/share/zsh-theme-powerlevel10k
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: yay_check.rc == 0
+  ignore_errors: true
+  tags: ["zsh", "permissions"]
+
+# =============================================================================
+# Oh-My-Zsh Custom Plugin/Theme Symlinks
+# =============================================================================
+- name: Ensure Oh-My-Zsh custom directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /usr/share/oh-my-zsh/custom/plugins
+    - /usr/share/oh-my-zsh/custom/themes
+  become: true
+  tags: ["zsh", "oh-my-zsh"]
+
+- name: Symlink powerlevel10k from AUR to Oh-My-Zsh custom themes
+  ansible.builtin.file:
+    src: /usr/share/zsh-theme-powerlevel10k
+    dest: /usr/share/oh-my-zsh/custom/themes/powerlevel10k
+    state: link
+  become: true
+  when: yay_check.rc == 0
+  tags: ["zsh", "oh-my-zsh"]
+
+- name: Symlink zsh-autosuggestions from pacman to Oh-My-Zsh custom plugins
+  ansible.builtin.file:
+    src: /usr/share/zsh/plugins/zsh-autosuggestions
+    dest: /usr/share/oh-my-zsh/custom/plugins/zsh-autosuggestions
+    state: link
+  become: true
+  tags: ["zsh", "oh-my-zsh"]

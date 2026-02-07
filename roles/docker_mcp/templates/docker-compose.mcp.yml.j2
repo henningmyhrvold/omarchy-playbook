@@ -1,0 +1,11 @@
+services:
+  mcp-docker:
+    image: mcp-server-docker:latest
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+{% if mcp_network_mode == 'host' %}
+    network_mode: host
+{% endif %}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

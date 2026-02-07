@@ -1,0 +1,5 @@
+---
+nftables_allowed_tcp_ports: [22]
+nftables_allowed_udp_ports: []
+nftables_ipv4_lan_sets: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"]
+nftables_ipv6_lan_sets: ["fd00::/8", "fe80::/10"]

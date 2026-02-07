@@ -1,0 +1,48 @@
+---
+# NPM Global Role - Installs global npm packages from config.yml
+
+- name: Check npm executable
+  ansible.builtin.command: "{{ npm_global_executable }} --version"
+  changed_when: false
+  tags: ["npm"]
+
+# Guard in case the list is undefined somewhere upstream
+- name: Ensure npm_global_packages is a list
+  ansible.builtin.assert:
+    that: npm_global_packages is iterable
+    fail_msg: "npm_global_packages must be a list (strings or dict items)."
+  tags: ["npm"]
+
+# Install / remove packages directly from the list, computing spec per item.
+# Supports:
+#   - "mcp-hub@latest"
+#   - "typescript # with comment"
+#   - { name: mcp-hub, version: latest, state: present }
+#   - { name: yarn, state: latest }
+- name: Ensure global npm packages are in desired state
+  vars:
+    _is_mapping: "{{ item is mapping }}"
+    # If item is a string, strip any inline shell-style comment ` # ...`
+    _name_raw: "{{ (item.name if _is_mapping else item) }}"
+    _name: "{{ _name_raw | regex_replace('\\s+#.*$', '') | trim }}"
+    _version: "{{ (item.version if (_is_mapping and (item.version is defined)) else '') | trim }}"
+    _state: >-
+      {{
+        (item.state | default(npm_global_default_state))
+        if _is_mapping else
+        npm_global_default_state
+      }}
+    _spec: "{{ _name ~ '@' ~ _version if _version|length > 0 else _name }}"
+  become: true
+  become_user: "{{ (npm_global_as_user if npm_global_as_user|length > 0 else omit) }}"
+  community.general.npm:
+    name: "{{ _spec }}"
+    global: true
+    state: "{{ _state }}"
+    executable: "{{ npm_global_executable }}"
+    production: true
+    unsafe_perm: "{{ npm_global_unsafe_perm }}"
+  loop: "{{ npm_global_packages }}"
+  loop_control:
+    label: "{{ _spec }}"
+  tags: ["npm", "mcp"]

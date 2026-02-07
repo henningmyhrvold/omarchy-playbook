@@ -1,0 +1,24 @@
+# docker-compose.mcp-ref.yml.j2
+# Managed by Ansible
+
+services:
+  {{ mcp_ref_container_name }}:
+    image: {{ mcp_ref_image }}
+    container_name: {{ mcp_ref_container_name }}
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install -g {{ mcp_ref_npm_package }} && exec npx {{ mcp_ref_npm_package }}"
+    stdin_open: true
+    tty: true
+{% if mcp_network_mode == 'host' %}
+    network_mode: host
+{% else %}
+    networks:
+      - {{ mcp_docker_network }}
+{% endif %}
+
+{% if mcp_network_mode != 'host' %}
+networks:
+  {{ mcp_docker_network }}:
+    external: true
+{% endif %}

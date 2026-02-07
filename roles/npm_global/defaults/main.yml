@@ -1,0 +1,21 @@
+---
+# NPM Global Role - Installs global npm packages
+
+# List can be strings ("pkg@version" or "pkg") or dicts:
+#   - mcp-hub@latest
+#   - { name: mcp-hub, version: latest, state: present }
+#   - { name: typescript, state: latest }
+npm_global_packages: []
+
+# Default state for items that omit it (present|absent|latest)
+npm_global_default_state: present
+
+# Path to npm executable (override if you use corepack/pnpm/yarn)
+npm_global_executable: npm
+
+# For rootful installs, lifecycle scripts sometimes need this
+npm_global_unsafe_perm: true
+
+# If you ever want to install per-user instead of global system:
+# Set to a username like "henning" to install under that user's $HOME.
+npm_global_as_user: ""

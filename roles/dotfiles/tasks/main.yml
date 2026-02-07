@@ -1,0 +1,64 @@
+---
+# Dotfiles Role - Self-contained tasks
+# Clones dotfiles repo and creates symlinks
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Create dotfiles directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ dotfiles_user }}"
+    group: "{{ dotfiles_user }}"
+    mode: "0755"
+  loop: "{{ dotfiles_folders }}"
+  become: true
+  become_user: "{{ dotfiles_user }}"
+  tags: ["dotfiles", "folders"]
+
+# =============================================================================
+# Clone Dotfiles Repository
+# =============================================================================
+- name: Clone dotfiles repository
+  ansible.builtin.git:
+    repo: "{{ dotfiles_repo }}"
+    dest: "{{ dotfiles_repo_dest }}"
+    version: "{{ dotfiles_repo_version }}"
+    force: false
+    update: false
+  become: true
+  become_user: "{{ dotfiles_user }}"
+  ignore_errors: true
+  tags: ["dotfiles", "repo"]
+
+# =============================================================================
+# Create Symlinks
+# =============================================================================
+- name: Link dotfiles into home folder
+  ansible.builtin.file:
+    src: "{{ dotfiles_repo_dest }}/{{ item.src }}"
+    dest: "{{ dotfiles_home }}/{{ item.dest }}"
+    state: link
+    force: true
+    owner: "{{ dotfiles_user }}"
+    mode: "0644"
+  loop: "{{ dotfiles_links | default(dotfiles_default_links) }}"
+  become: true
+  become_user: "{{ dotfiles_user }}"
+  ignore_errors: true
+  tags: ["dotfiles", "symlinks"]
+
+# =============================================================================
+# Make Binaries Executable
+# =============================================================================
+- name: Ensure specified scripts are executable
+  ansible.builtin.file:
+    path: "{{ dotfiles_repo_dest }}/{{ item }}"
+    mode: "0755"
+  with_items: "{{ dotfiles_files_binaries }}"
+  when: dotfiles_files_binaries is defined and dotfiles_files_binaries | length > 0
+  become: true
+  become_user: "{{ dotfiles_user }}"
+  ignore_errors: true
+  tags: ["dotfiles", "binaries"]

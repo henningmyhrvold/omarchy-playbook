@@ -1,0 +1,7 @@
+---
+claude_code_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+claude_code_home: "/home/{{ claude_code_user }}"
+claude_code_config_dir: "{{ claude_code_home }}/.config/claude"
+claude_code_npm_package: "@anthropic-ai/claude-code"
+claude_code_install_method: "npm"
+mcp_servers_registered: []

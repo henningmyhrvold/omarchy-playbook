@@ -1,0 +1,44 @@
+{
+  "projects": {},
+  "mcpServers": {
+{% set containers = _mcp_containers.stdout_lines | default([]) %}
+{% set comma_needed = namespace(value=false) %}
+{% for container in containers %}
+{% if container == 'mcp-filesystem' %}
+{% if comma_needed.value %},
+{% endif %}
+    "filesystem": {
+      "type": "stdio",
+      "command": "docker",
+      "args": ["exec", "-i", "{{ container }}", "npx", "@modelcontextprotocol/server-filesystem"{{ ', "' + mcp_filesystem_allowed_dirs | join('", "') + '"' if mcp_filesystem_allowed_dirs is defined else '' }}],
+      "env": {}
+    }
+{% set comma_needed.value = true %}
+{% endif %}
+{% if container == 'mcp-github' %}
+{% if comma_needed.value %},
+{% endif %}
+    "github": {
+      "type": "stdio",
+      "command": "docker",
+      "args": ["exec", "-i", "{{ container }}", "npx", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{{ github_token | default('') }}"
+      }
+    }
+{% set comma_needed.value = true %}
+{% endif %}
+{% if container == 'mcp-ref' %}
+{% if comma_needed.value %},
+{% endif %}
+    "ref": {
+      "type": "stdio",
+      "command": "docker",
+      "args": ["exec", "-i", "{{ container }}", "npx", "@upstash/context7-mcp"],
+      "env": {}
+    }
+{% set comma_needed.value = true %}
+{% endif %}
+{% endfor %}
+  }
+}

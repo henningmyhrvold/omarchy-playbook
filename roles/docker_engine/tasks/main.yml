@@ -1,0 +1,110 @@
+---
+# Docker Engine Role - Self-contained tasks
+# Installs Docker and configures it for use
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install Docker and dependencies from pacman
+  community.general.pacman:
+    name: "{{ docker_pacman_packages }}"
+    state: present
+    update_cache: true
+  become: true
+  tags: ["docker", "packages"]
+
+# =============================================================================
+# Service Configuration
+# =============================================================================
+- name: Enable and start docker service
+  ansible.builtin.service:
+    name: "{{ docker_service_name }}"
+    enabled: "{{ docker_service_enabled }}"
+    state: started
+  become: true
+  tags: ["docker", "services"]
+
+# =============================================================================
+# Docker Configuration Directory
+# =============================================================================
+- name: Ensure /etc/docker exists
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    mode: "0755"
+  become: true
+  tags: ["docker", "config"]
+
+# =============================================================================
+# Daemon Configuration (merge-safe)
+# =============================================================================
+- name: Stat existing /etc/docker/daemon.json
+  ansible.builtin.stat:
+    path: /etc/docker/daemon.json
+  register: docker_daemon_json_stat
+  become: true
+  when: docker_manage_daemon_json
+  tags: ["docker", "config"]
+
+- name: Read existing /etc/docker/daemon.json (if present)
+  ansible.builtin.slurp:
+    path: /etc/docker/daemon.json
+  register: docker_daemon_json_slurp
+  become: true
+  when:
+    - docker_manage_daemon_json
+    - docker_daemon_json_stat.stat.exists
+  tags: ["docker", "config"]
+
+- name: Build target daemon.json dict
+  ansible.builtin.set_fact:
+    docker_daemon_json_target: >-
+      {{
+        (
+          (docker_daemon_json_slurp.content | b64decode | from_json)
+          if docker_daemon_json_stat.stat.exists
+          else {}
+        )
+        | combine(
+            {"features": {"buildkit": docker_enable_buildkit|bool}},
+            recursive=True
+          )
+        | combine(docker_daemon_json_extra, recursive=True)
+      }}
+  become: true
+  when: docker_manage_daemon_json
+  tags: ["docker", "config"]
+
+- name: Write /etc/docker/daemon.json (merge-safe)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    content: "{{ docker_daemon_json_target | to_nice_json }}"
+  become: true
+  notify: restart docker
+  when: docker_manage_daemon_json
+  tags: ["docker", "config"]
+
+# Ensure handlers run right now so other roles see the new daemon settings
+- name: Restart docker immediately if daemon.json changed
+  ansible.builtin.meta: flush_handlers
+  tags: ["docker", "config"]
+
+# =============================================================================
+# User Group Configuration
+# =============================================================================
+- name: Ensure docker group exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+  become: true
+  tags: ["docker", "users"]
+
+- name: Add users to docker group
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop: "{{ docker_users | default([]) }}"
+  become: true
+  tags: ["docker", "users"]

@@ -1,0 +1,21 @@
+[Unit]
+Description=MCP server via Docker Compose (user)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+RemainAfterExit=yes
+WorkingDirectory=%h/.config/mcp
+ExecStart=/usr/bin/docker compose --ansi never --progress plain \
+  --project-directory %h/.config/mcp \
+  --file docker-compose.mcp.yml up -d
+ExecStop=/usr/bin/docker compose --ansi never --progress plain \
+  --project-directory %h/.config/mcp \
+  --file docker-compose.mcp.yml down
+Restart=on-failure
+RestartSec=3
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=default.target

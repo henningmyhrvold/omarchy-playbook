@@ -1,0 +1,43 @@
+flush ruleset
+
+table inet filter {
+  set LANv4 {
+    type ipv4_addr
+    flags interval
+    elements = { {{ nftables_ipv4_lan_sets | join(', ') }} }
+  }
+  set LANv6 {
+    type ipv6_addr
+    flags interval
+    elements = { {{ nftables_ipv6_lan_sets | join(', ') }} }
+  }
+
+  chain input {
+    type filter hook input priority filter; policy drop;
+    iif "lo" accept comment "Accept loopback traffic i.e. local inter-process communications"
+    ct state invalid drop comment "Drop invalid connections"
+    ct state { established, related } accept comment "Accept established and related traffic"
+    meta l4proto { icmp, ipv6-icmp } accept comment "Accept ICMP"
+    ip protocol igmp accept comment "Accept IGMP"
+    udp dport mdns ip6 daddr ff02::fb accept comment "Accept mDNS (IPv6)"
+    udp dport mdns ip daddr 224.0.0.251 accept comment "Accept mDNS (IPv4)"
+    ip6 saddr @LANv6 accept comment "Accept local IPv6 traffic"
+    ip saddr @LANv4 accept comment "Accept local IPv4 traffic"
+    {% if nftables_allowed_tcp_ports %}
+    tcp dport { {{ nftables_allowed_tcp_ports | join(', ') }} } accept comment "Accept specified TCP ports"
+    {% endif %}
+    {% if nftables_allowed_udp_ports %}
+    udp dport { {{ nftables_allowed_udp_ports | join(', ') }} } accept comment "Accept specified UDP ports"
+    {% endif %}
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy drop;
+    # No forwarding by default; enable if needed for router setups
+  }
+
+  chain output {
+    type filter hook output priority filter; policy accept;
+    # Accept all outbound traffic
+  }
+}

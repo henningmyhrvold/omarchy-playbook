@@ -1,0 +1,11 @@
+---
+wg_conf_dir: /etc/wireguard
+wg_interface: wg0
+wg_enable_service: false
+wg_create_placeholder: false
+wg_config_mode: "0600"
+wg_load_module: true
+wg_killswitch_enable: true
+wg_install_helpers: true
+wg_killswitch_allow_lan_cidr: ""
+wg_dns_provider: "auto"

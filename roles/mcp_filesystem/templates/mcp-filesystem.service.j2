@@ -1,0 +1,20 @@
+[Unit]
+Description=MCP Filesystem Server
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+RemainAfterExit=yes
+WorkingDirectory={{ mcp_filesystem_dir }}
+ExecStart=/usr/bin/docker compose --ansi never --progress plain \
+  --project-directory {{ mcp_filesystem_dir }} \
+  --file docker-compose.mcp-filesystem.yml up -d
+ExecStop=/usr/bin/docker compose --ansi never --progress plain \
+  --project-directory {{ mcp_filesystem_dir }} \
+  --file docker-compose.mcp-filesystem.yml down
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

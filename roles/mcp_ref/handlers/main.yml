@@ -1,0 +1,16 @@
+---
+- name: restart mcp-ref
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.systemd:
+    name: "{{ mcp_ref_service_name }}"
+    scope: user
+    state: restarted
+    daemon_reload: true
+
+- name: reload mcp-ref systemd
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.command: "systemctl --user daemon-reload"
+  changed_when: false
+  failed_when: false

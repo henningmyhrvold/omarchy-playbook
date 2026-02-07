@@ -1,0 +1,12 @@
+---
+mcp_owner: "{{ target_user | default(ansible_facts['user_id']) }}"
+mcp_project_dir: "/home/{{ mcp_owner }}/.config/mcp"
+mcp_compose_file: "docker-compose.mcp.yml"
+mcp_repo_url: "https://github.com/ckreiling/mcp-server-docker.git"
+mcp_repo_dir: "/home/{{ mcp_owner }}/.local/src/mcp-server-docker"
+mcp_network_mode: "host"
+mcp_compose_pull_policy: "never"
+mcp_install_nvim_glue: true
+mcp_install_user_service: true
+mcp_user_service_name: "mcp-docker.service"
+mcp_enable_lingering: true

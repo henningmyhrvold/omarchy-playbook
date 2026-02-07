@@ -1,0 +1,44 @@
+---
+# Dotfiles Role — Omarchy-adapted
+# Clones dotfiles repo and creates symlinks
+
+dotfiles_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+dotfiles_home: "/home/{{ dotfiles_user }}"
+
+# =============================================================================
+# Repository Configuration
+# =============================================================================
+dotfiles_repo: "https://github.com/henningmyhrvold/omarchy-dotfiles.git"
+dotfiles_repo_version: "main"
+dotfiles_repo_dest: "{{ dotfiles_home }}/src/omarchy-dotfiles"
+
+# =============================================================================
+# Directories to Create
+# =============================================================================
+dotfiles_folders:
+  - "{{ dotfiles_home }}/src"
+  - "{{ dotfiles_home }}/.config"
+  - "{{ dotfiles_home }}/.local/bin"
+
+# =============================================================================
+# Symlinks to Create
+# These can be overridden in config.yml via dotfiles_links variable
+# =============================================================================
+dotfiles_default_links:
+  - { src: "zsh/.zshrc", dest: ".zshrc" }
+  - { src: "zsh/.zsh_profile", dest: ".zsh_profile" }
+  - { src: "zsh/.p10k.zsh", dest: ".p10k.zsh" }
+  - { src: "tmux/tmux.conf", dest: ".config/tmux/tmux.conf" }
+  - { src: "tmux-sessionizer/tmux-sessionizer.conf", dest: ".config/tmux-sessionizer/tmux-sessionizer.conf" }
+  - { src: "tmux-sessionizer/tmux-sessionizer.sh", dest: ".local/bin/tmux-sessionizer.sh" }
+  - { src: "tmux-sessionizer/tmux-status-color.sh", dest: ".local/bin/tmux-status-color.sh" }
+  - { src: "mcp/hub.json", dest: ".config/mcp/hub.json" }
+  - { src: "mcp/mcphub.json", dest: ".config/mcp/mcphub.json" }
+  - { src: "mcp/docker-compose.mcp.yml", dest: ".config/mcp/docker-compose.mcp.yml" }
+
+# =============================================================================
+# Files that should be marked as executable
+# =============================================================================
+dotfiles_files_binaries:
+  - "tmux-sessionizer/tmux-sessionizer.sh"
+  - "tmux-sessionizer/tmux-status-color.sh"

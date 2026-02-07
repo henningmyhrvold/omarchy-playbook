@@ -1,0 +1,20 @@
+---
+mcp_owner: "{{ target_user | default(ansible_facts['user_id']) }}"
+mcp_home: "/home/{{ mcp_owner }}"
+mcp_docker_packages:
+  - docker
+  - docker-compose
+mcp_base_dir: "{{ mcp_home }}/.config"
+mcp_ref_dir: "{{ mcp_base_dir }}/mcp-ref"
+mcp_folders:
+  - "{{ mcp_base_dir }}"
+  - "{{ mcp_ref_dir }}"
+  - "{{ mcp_home }}/.config/systemd/user"
+mcp_ref_container_name: "mcp-ref"
+mcp_ref_image: "node:20-alpine"
+mcp_network_mode: "bridge"
+mcp_docker_network: "mcp-network"
+mcp_ref_npm_package: "@upstash/context7-mcp"
+mcp_ref_service_name: "mcp-ref.service"
+mcp_enable_lingering: true
+mcp_compose_pull_policy: "missing"

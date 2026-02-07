@@ -1,0 +1,18 @@
+---
+# Pacman Role — Omarchy-adapted
+# Installs additional packages on top of Omarchy's base
+# Reflector/mirrorlist management removed — Omarchy handles mirrors
+
+- name: Update package cache
+  community.general.pacman:
+    update_cache: true
+  become: true
+  tags: ['pacman']
+
+- name: Install packages from pacman_installed_packages list
+  community.general.pacman:
+    name: "{{ pacman_installed_packages }}"
+    state: present
+  become: true
+  when: pacman_installed_packages is defined
+  tags: ['pacman', 'packages']

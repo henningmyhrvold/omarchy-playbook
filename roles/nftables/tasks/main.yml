@@ -1,0 +1,20 @@
+---
+- name: Install nftables package
+  community.general.pacman:
+    name: nftables
+    state: present
+
+- name: Deploy nftables configuration
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload nftables
+
+- name: Enable and start nftables service
+  ansible.builtin.systemd:
+    name: nftables.service
+    enabled: true
+    state: started

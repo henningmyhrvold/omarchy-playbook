@@ -1,0 +1,173 @@
+---
+# Ensure directories exist for the chosen owner
+- name: Ensure project directories exist (user-owned)
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ mcp_repo_dir | dirname }}"
+    - "{{ mcp_project_dir }}"
+    - "/home/{{ mcp_owner }}/.config/nvim/lua/plugins"
+
+# Fetch upstream sources (user-owned)
+- name: Clone mcp-server-docker (upstream)
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.git:
+    repo: "{{ mcp_repo_url }}"
+    dest: "{{ mcp_repo_dir }}"
+    version: "main"
+    update: yes
+
+# --- BuildKit sanity (helpful error if daemon misconfigured) --------------------
+- name: Stat /etc/docker/daemon.json
+  become: true
+  ansible.builtin.stat:
+    path: /etc/docker/daemon.json
+  register: _daemon_json_stat
+
+- name: Read /etc/docker/daemon.json (if present)
+  become: true
+  ansible.builtin.slurp:
+    path: /etc/docker/daemon.json
+  register: _daemon_json_slurp
+  when: _daemon_json_stat.stat.exists
+
+- name: Parse daemon.json to a dict (if present)
+  ansible.builtin.set_fact:
+    _daemon_json: "{{ _daemon_json_slurp.content | b64decode | from_json }}"
+  when: _daemon_json_stat.stat.exists
+
+- name: Extract features.buildkit (fallback signal)
+  ansible.builtin.set_fact:
+    _daemon_buildkit: "{{ (_daemon_json.features.buildkit | default(false)) | bool }}"
+  when: _daemon_json_stat.stat.exists
+
+- name: Detect BuildKit via `docker info` (best-effort)
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.shell: |
+    docker info 2>/dev/null \
+      | awk -F': *' 'tolower($1) ~ /^buildkit$/ {print tolower($2)}' \
+      | tail -n1
+  register: _buildkit_detect
+  changed_when: false
+  failed_when: false
+
+- name: Assert BuildKit is enabled on the Docker daemon
+  ansible.builtin.assert:
+    that:
+      - (_buildkit_detect.stdout | default('') | lower) is search('true') or (_daemon_buildkit | default(false) | bool)
+    fail_msg: >-
+      Docker BuildKit appears to be disabled. The Dockerfile uses 'RUN --mount=type=cache',
+      which requires BuildKit. Ensure /etc/docker/daemon.json contains:
+      {"features": {"buildkit": true}} and Docker has been restarted.
+    success_msg: "BuildKit detected."
+
+# --- Build image using Buildx as the user --------------------------------------
+- name: Check that the Buildx plugin is available
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.command: docker buildx version
+  register: _bx_version
+  changed_when: false
+  failed_when: false
+
+- name: Fail clearly if Buildx is missing
+  ansible.builtin.fail:
+    msg: >-
+      Docker Buildx plugin is not installed for {{ mcp_owner }}.
+      On Arch, install 'docker-buildx'. Then log out/in (group refresh) and re-run.
+  when: _bx_version.rc != 0
+
+- name: Ensure a usable buildx builder (create if missing)
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.command: docker buildx inspect
+  register: _bx_inspect
+  changed_when: false
+  failed_when: false
+
+- name: Create and select a buildx builder (if missing)
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.command: docker buildx create --driver docker-container --use
+  when: _bx_inspect.rc != 0
+
+- name: "Build local image: mcp-server-docker:latest (via buildx + BuildKit)"
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.shell: >
+    docker buildx build
+    {% if mcp_network_mode == 'host' %} --network=host {% endif %}
+    --load -t mcp-server-docker:latest .
+  args:
+    chdir: "{{ mcp_repo_dir }}"
+  environment:
+    DOCKER_BUILDKIT: "1"
+
+# --- Runtime (compose) ----------------------------------------------------------
+- name: Drop Compose file for MCP Docker service (user-owned)
+  become: true
+  become_user: "{{ mcp_owner }}"
+  ansible.builtin.template:
+    src: docker-compose.mcp.yml.j2
+    dest: "{{ mcp_project_dir }}/{{ mcp_compose_file }}"
+    mode: "0644"
+
+- name: Ensure MCP Docker service is up via Compose (user-owned)
+  become: true
+  become_user: "{{ mcp_owner }}"
+  community.docker.docker_compose_v2:
+    project_src: "{{ mcp_project_dir }}"
+    files:
+      - "{{ mcp_compose_file }}"
+    state: present
+    pull: "{{ mcp_compose_pull_policy }}"
+
+# --- Optional user-level systemd service ---------------------------------------
+- name: Enable lingering for {{ mcp_owner }} (optional)
+  become: true
+  when: mcp_install_user_service | bool and mcp_enable_lingering | bool
+  ansible.builtin.command: "loginctl enable-linger {{ mcp_owner }}"
+  changed_when: false
+  failed_when: false
+
+- name: Ensure user systemd dir exists
+  become: true
+  become_user: "{{ mcp_owner }}"
+  when: mcp_install_user_service | bool
+  ansible.builtin.file:
+    path: "~/.config/systemd/user"
+    state: directory
+    mode: "0755"
+
+- name: Install user systemd unit for MCP
+  become: true
+  become_user: "{{ mcp_owner }}"
+  when: mcp_install_user_service | bool
+  ansible.builtin.template:
+    src: mcp-docker.service.j2
+    dest: "~/.config/systemd/user/{{ mcp_user_service_name }}"
+    mode: "0644"
+
+- name: Reload user systemd and enable service
+  become: true
+  become_user: "{{ mcp_owner }}"
+  when: mcp_install_user_service | bool
+  ansible.builtin.command: "systemctl --user daemon-reload"
+  changed_when: false
+  failed_when: false
+
+- name: Enable and start MCP user service
+  become: true
+  become_user: "{{ mcp_owner }}"
+  when: mcp_install_user_service | bool
+  ansible.builtin.command: "systemctl --user enable --now {{ mcp_user_service_name }}"
+  register: _mcp_user_service_enable
+  changed_when: "'Created symlink' in (_mcp_user_service_enable.stdout | default('')) or 'Started' in (_mcp_user_service_enable.stdout | default(''))"
+  failed_when: false
+

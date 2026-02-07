@@ -1,0 +1,63 @@
+---
+# Omarchy Workstation Playbook
+# Layers on top of Omarchy — never modifies ~/.local/share/omarchy/
+# All roles are self-contained and can be run independently
+#
+# Usage examples:
+#   ./bootstrap.sh                              # Run everything
+#   ansible-playbook playbook.yml --tags zsh   # Run only zsh role
+#   ansible-playbook playbook.yml --tags "zsh,tmux"  # Run multiple
+#   ansible-playbook playbook.yml --skip-tags mcp  # Skip MCP roles
+
+- hosts: workstation
+  become: true
+  vars_files:
+    - config.yml
+
+  roles:
+    # Core packages (your additions on top of Omarchy)
+    - { role: pacman, tags: ["pacman", "packages"] }
+    - { role: aur, tags: ["aur", "packages"] }
+
+    # Shell (installs zsh + oh-my-zsh + p10k — does NOT chsh)
+    - { role: zsh, tags: ["zsh", "shell"] }
+
+    # Terminal (injects non-theme settings into Omarchy's Ghostty config)
+    - { role: ghostty, tags: ["ghostty", "terminal"] }
+
+    # Development tools
+    - { role: tmux, tags: ["tmux", "terminal"] }
+
+    # System services
+    - { role: dns, tags: ["dns", "network"] }
+    - { role: nftables, tags: ["nftables", "firewall"] }
+    - { role: apparmor, tags: ["apparmor", "security"] }
+    - { role: wireguard, tags: ["wireguard", "vpn"] }
+
+    # Containers
+    - { role: docker_engine, tags: ["docker"] }
+
+    # Applications
+    - role: thunderbird_headless
+      tags: ["thunderbird"]
+      vars:
+        thunderbird_enable_lingering: true
+        thunderbird_refresh_method: "timer"
+        thunderbird_refresh_interval: "1min"
+
+    # AI Tools
+    - { role: claude_desktop_wayland, tags: ["claude-desktop", "ai"] }
+    - { role: claude_code, tags: ["claude-code", "ai"] }
+
+    # MCP Servers (Docker-based)
+    - { role: mcp_filesystem, tags: ["mcp", "mcp-filesystem"], when: mcp_filesystem_enabled | default(true) }
+    - { role: mcp_ref, tags: ["mcp", "mcp-ref"], when: mcp_ref_enabled | default(true) }
+    - { role: mcp_hub_ui, tags: ["mcp", "mcp-hub-ui"] }
+    - { role: docker_mcp, tags: ["mcp", "docker-mcp"] }
+
+    # Utility (dotfiles, folders, extra links)
+    - { role: repos, when: configure_repos | default(false), tags: ["repos"] }
+    - { role: folders, tags: ["folders"] }
+    - { role: dotfiles, tags: ["dotfiles"] }
+    - { role: links, tags: ["links"] }
+    - { role: aur-packages, tags: ["aur-packages", "packages"] }

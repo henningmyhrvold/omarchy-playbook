@@ -1,0 +1,231 @@
+---
+- name: Install WireGuard userspace tools
+  become: true
+  ansible.builtin.pacman:
+    name:
+      - wireguard-tools
+    state: present
+    update_cache: true
+
+- name: Ensure WireGuard config directory exists with strict permissions
+  become: true
+  ansible.builtin.file:
+    path: "{{ wg_conf_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: (Optional) create a placeholder config file (kept empty)
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+    content: |
+      # Placeholder created by Ansible. Put your real config here.
+      # NOTE: Do NOT commit your actual WireGuard config to version control.
+      # TIP: Add the following lines to enable the killswitch automatically:
+      # PostUp=/usr/local/lib/wireguard-killswitch-up.sh %i
+      # PostDown=/usr/local/lib/wireguard-killswitch-down.sh %i
+    owner: root
+    group: root
+    mode: "{{ wg_config_mode }}"
+    force: no
+  when: wg_create_placeholder | bool
+
+- name: Attempt to load the 'wireguard' kernel module (safe/no-fail if built-in)
+  become: true
+  ansible.builtin.command: modprobe wireguard
+  changed_when: false
+  failed_when: false
+  when: wg_load_module | bool
+
+# --- DNS provider handling for wg-quick (resolvconf requirement) ---
+
+- name: Stat interface config to check for DNS handling
+  become: true
+  ansible.builtin.stat:
+    path: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+  register: wg_conf
+
+- name: Read interface config to detect DNS= lines
+  become: true
+  ansible.builtin.slurp:
+    path: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+  register: wg_conf_content
+  when: wg_conf.stat.exists
+
+- name: Set fact whether DNS lines exist
+  ansible.builtin.set_fact:
+    wg_conf_has_dns: "{{ (wg_conf_content['content'] | b64decode).splitlines() | select('match', '^[[:space:]]*DNS[[:space:]]*=') | list | length > 0 }}"
+  when: wg_conf.stat.exists
+
+- name: Install DNS provider for wg-quick (auto/openresolv/systemd-resolved)
+  become: true
+  when: >
+    (wg_dns_provider == 'openresolv')
+    or (wg_dns_provider == 'systemd-resolved')
+    or (wg_dns_provider == 'auto' and wg_conf.stat.exists and wg_conf_has_dns)
+  block:
+    - name: Ensure openresolv is installed (chosen or auto)
+      ansible.builtin.pacman:
+        name: openresolv
+        state: present
+      when: wg_dns_provider in ['openresolv', 'auto']
+
+    - name: Ensure systemd-resolvconf is installed (explicitly chosen)
+      ansible.builtin.pacman:
+        name: systemd-resolvconf
+        state: present
+      when: wg_dns_provider == 'systemd-resolved'
+
+# --- Killswitch scripts and helpers ---
+
+- name: Install killswitch "up" script
+  become: true
+  ansible.builtin.copy:
+    dest: /usr/local/lib/wireguard-killswitch-up.sh
+    mode: "0755"
+    owner: root
+    group: root
+    content: |
+      #!/usr/bin/env bash
+      # Enable nftables killswitch for a WireGuard interface.
+      # Usage: wireguard-killswitch-up.sh <iface>   (iface defaults to wg0)
+      set -euo pipefail
+
+      IFACE="${1:-wg0}"
+      CONF="/etc/wireguard/${IFACE}.conf"
+
+      if [[ ! -f "$CONF" ]]; then
+        echo "WireGuard config not found: $CONF" >&2
+        exit 1
+      fi
+
+      ENDPOINT_LINE="$(awk -F'=' '/^[[:space:]]*Endpoint[[:space:]]*=/{gsub(/[[:space:]\r]/,"",$2); print $2}' "$CONF" | head -n1 || true)"
+      if [[ -z "${ENDPOINT_LINE:-}" ]]; then
+        echo "No Endpoint found in $CONF. Killswitch will block handshake unless LAN is allowed." >&2
+      fi
+
+      HOST=""
+      PORT=""
+      if [[ -n "${ENDPOINT_LINE:-}" ]]; then
+        HOST="${ENDPOINT_LINE%:*}"
+        PORT="${ENDPOINT_LINE##*:}"
+      fi
+
+      EP_IPv4=""
+      EP_IPv6=""
+      if [[ -n "${HOST:-}" ]]; then
+        while read -r ip _; do
+          if [[ "$ip" == *:* ]]; then
+            [[ -z "$EP_IPv6" ]] && EP_IPv6="$ip"
+          else
+            [[ -z "$EP_IPv4" ]] && EP_IPv4="$ip"
+          fi
+        done < <(getent ahosts "$HOST" || true)
+      fi
+
+      ALLOW_LAN_CIDR="{{ wg_killswitch_allow_lan_cidr | default('') }}"
+
+      NFT_SCRIPT="$(mktemp)"
+      trap 'rm -f "$NFT_SCRIPT"' EXIT
+
+      {
+        echo 'table inet wgks {'
+        echo '  chain output {'
+        echo '    type filter hook output priority 0; policy drop;'
+        echo '    iifname "lo" accept'
+        echo "    oifname \"${IFACE}\" accept"
+        echo '    ct state established,related accept'
+        if [[ -n "$EP_IPv4" && -n "${PORT:-}" ]]; then
+          echo "    ip daddr ${EP_IPv4} udp dport ${PORT} accept"
+        fi
+        if [[ -n "$EP_IPv6" && -n "${PORT:-}" ]]; then
+          echo "    ip6 daddr ${EP_IPv6} udp dport ${PORT} accept"
+        fi
+        if [[ -n "$ALLOW_LAN_CIDR" ]]; then
+          echo "    ip daddr ${ALLOW_LAN_CIDR} accept"
+        fi
+        echo '  }'
+        echo '}'
+      } > "$NFT_SCRIPT"
+
+      if nft list table inet wgks >/dev/null 2>&1; then
+        nft delete table inet wgks || true
+      fi
+      nft -f "$NFT_SCRIPT"
+
+      echo "Killswitch enabled (table inet wgks)."
+      nft list table inet wgks || true
+
+- name: Install killswitch "down" script
+  become: true
+  ansible.builtin.copy:
+    dest: /usr/local/lib/wireguard-killswitch-down.sh
+    mode: "0755"
+    owner: root
+    group: root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      nft delete table inet wgks 2>/dev/null || true
+      echo "Killswitch disabled (table inet wgks removed)."
+
+- name: Install helper commands wg-on / wg-off
+  become: true
+  when: wg_install_helpers | bool
+  block:
+    - name: Install wg-on
+      ansible.builtin.copy:
+        dest: /usr/local/bin/wg-on
+        mode: "0755"
+        owner: root
+        group: root
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          IFACE="${1:-{{ wg_interface }}}"
+          systemctl start "wg-quick@${IFACE}"
+          systemctl enable "wg-quick@${IFACE}" >/dev/null 2>&1 || true
+          systemctl --no-pager --full status "wg-quick@${IFACE}" || true
+          echo "WireGuard ${IFACE} is ON (killswitch active)."
+
+    - name: Install wg-off
+      ansible.builtin.copy:
+        dest: /usr/local/bin/wg-off
+        mode: "0755"
+        owner: root
+        group: root
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          IFACE="${1:-{{ wg_interface }}}"
+          systemctl stop "wg-quick@${IFACE}" || true
+          systemctl disable "wg-quick@${IFACE}" >/dev/null 2>&1 || true
+          /usr/local/lib/wireguard-killswitch-down.sh || true
+          echo "WireGuard ${IFACE} is OFF (killswitch removed)."
+
+- name: Check if interface config exists
+  become: true
+  ansible.builtin.stat:
+    path: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+  register: wg_conf_2
+
+- name: Enable wg-quick@{{ wg_interface }} (only if config exists and requested)
+  become: true
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wg_interface }}"
+    enabled: true
+  when:
+    - wg_enable_service | bool
+    - wg_conf_2.stat.exists
+
+- name: Start (or restart) wg-quick@{{ wg_interface }} (only if config exists and requested)
+  become: true
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wg_interface }}"
+    state: restarted
+  when:
+    - wg_enable_service | bool
+    - wg_conf_2.stat.exists
+

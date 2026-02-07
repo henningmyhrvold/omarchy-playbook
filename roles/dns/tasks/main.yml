@@ -1,0 +1,177 @@
+---
+- name: Assert Arch Linux (to avoid surprises)
+  ansible.builtin.assert:
+    that:
+      - ansible_facts["distribution"] | lower == "archlinux"
+    fail_msg: "This dns role currently targets Arch Linux."
+    success_msg: "Arch Linux detected."
+
+# Optional WireGuard sanity: if DNS= present in wg conf, we must provide resolvconf
+- name: Stat WireGuard config
+  become: true
+  ansible.builtin.stat:
+    path: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+  register: _wgconf
+
+- name: Read WireGuard config (if present)
+  become: true
+  ansible.builtin.slurp:
+    path: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+  register: _wgconf_content
+  when: _wgconf.stat.exists
+
+- name: Detect DNS= lines in WireGuard config
+  ansible.builtin.set_fact:
+    _wg_has_dns: >-
+      {{
+        (_wgconf_content.content | default('') | b64decode).splitlines()
+        | select('search', '^\\s*DNS\\s*=')
+        | list | length > 0
+      }}
+  when: _wgconf.stat.exists
+
+- name: Fail fast if DNS= is present but no known provider chosen
+  ansible.builtin.fail:
+    msg: >-
+      Your WireGuard config includes DNS= but dns_provider is not one of
+      ['systemd-resolved','openresolv']. Set dns_provider accordingly.
+  when:
+    - dns_fail_if_wg_dns_without_provider | bool
+    - _wgconf.stat.exists
+    - _wg_has_dns | default(false)
+    - dns_provider not in ['systemd-resolved', 'openresolv']
+
+# ------------------------------
+# Detect whether NetworkManager is installed
+# ------------------------------
+- name: Detect if NetworkManager is installed (Arch package 'networkmanager')
+  ansible.builtin.command: pacman -Q networkmanager
+  register: _nm_q
+  changed_when: false
+  failed_when: false
+
+- name: Set fact nm_installed
+  ansible.builtin.set_fact:
+    nm_installed: "{{ _nm_q.rc == 0 }}"
+
+- name: Debug NM state
+  ansible.builtin.debug:
+    msg: >-
+      NetworkManager detected: {{ nm_installed }}.
+      DNS provider: {{ dns_provider }}.
+  when: (ansible_verbosity | default(0) | int) > 0
+
+# ------------------------------
+# Provider: systemd-resolved
+# ------------------------------
+- name: Install systemd-resolvconf (provides /usr/bin/resolvconf)
+  become: true
+  ansible.builtin.pacman:
+    name: systemd-resolvconf
+    state: present
+    update_cache: true
+  when: dns_provider == "systemd-resolved"
+
+- name: Enable and start systemd-resolved
+  become: true
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    enabled: true
+    state: started
+  when: dns_provider == "systemd-resolved"
+
+- name: Point /etc/resolv.conf to the systemd-resolved stub
+  become: true
+  ansible.builtin.file:
+    src: "{{ dns_resolved_stub }}"
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  notify: reload systemd-resolved
+  when: dns_provider == "systemd-resolved"
+
+- name: Configure NetworkManager for systemd-resolved (only if installed)
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/99-dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [main]
+      dns=systemd-resolved
+  notify: restart NetworkManager
+  when:
+    - dns_provider == "systemd-resolved"
+    - dns_configure_networkmanager | bool
+    - nm_installed | bool
+
+- name: Remove openresolv if present (avoid conflicts)
+  become: true
+  ansible.builtin.pacman:
+    name: openresolv
+    state: absent
+  when: dns_provider == "systemd-resolved" and dns_remove_conflicts | bool
+
+# ------------------------------
+# Provider: openresolv
+# ------------------------------
+- name: Install openresolv (provides /usr/bin/resolvconf)
+  become: true
+  ansible.builtin.pacman:
+    name: openresolv
+    state: present
+    update_cache: true
+  when: dns_provider == "openresolv"
+
+- name: Ensure /etc/resolv.conf is a regular file (not a symlink)
+  become: true
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    state: absent
+  when: dns_provider == "openresolv"
+
+- name: Seed a minimal /etc/resolv.conf (temporary baseline)
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {% for ns in dns_fallback_nameservers %}
+      nameserver {{ ns }}
+      {% endfor %}
+  when: dns_provider == "openresolv"
+
+- name: Attempt to populate resolv.conf from resolvconf (ignore errors if no sources yet)
+  become: true
+  ansible.builtin.command: resolvconf -u
+  register: _resolvconf_u
+  changed_when: "'not found' not in (_resolvconf_u.stderr | default(''))"
+  failed_when: false
+  when: dns_provider == "openresolv"
+
+- name: Configure NetworkManager for openresolv/default handling (only if installed)
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/99-dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [main]
+      dns=default
+  notify: restart NetworkManager
+  when:
+    - dns_provider == "openresolv"
+    - dns_configure_networkmanager | bool
+    - nm_installed | bool
+
+- name: Remove systemd-resolvconf if present (avoid conflicts)
+  become: true
+  ansible.builtin.pacman:
+    name: systemd-resolvconf
+    state: absent
+  when: dns_provider == "openresolv" and dns_remove_conflicts | bool
+

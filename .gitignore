@@ -1,0 +1,5 @@
+.gptignore
+.claude.md
+.claude/
+concat_gipity.py
+project_code.txt

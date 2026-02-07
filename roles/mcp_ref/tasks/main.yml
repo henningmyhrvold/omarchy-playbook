@@ -1,0 +1,136 @@
+---
+# MCP Ref Role - Self-contained tasks
+# Runs MCP Context7 Reference server in Docker
+
+# =============================================================================
+# Docker Prerequisites
+# =============================================================================
+- name: Install Docker packages from pacman
+  community.general.pacman:
+    name: "{{ mcp_docker_packages }}"
+    state: present
+  become: true
+  tags: ["mcp-ref", "packages"]
+
+- name: Ensure Docker is running
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+  become: true
+  tags: ["mcp-ref", "docker"]
+
+- name: Ensure user is in docker group
+  ansible.builtin.user:
+    name: "{{ mcp_owner }}"
+    groups: docker
+    append: true
+  become: true
+  tags: ["mcp-ref", "docker"]
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Create MCP directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ mcp_owner }}"
+    group: "{{ mcp_owner }}"
+    mode: "0755"
+  loop: "{{ mcp_folders }}"
+  become: true
+  become_user: "{{ mcp_owner }}"
+  tags: ["mcp-ref", "folders"]
+
+# =============================================================================
+# Docker Network
+# =============================================================================
+- name: Create Docker network for MCP servers
+  community.docker.docker_network:
+    name: "{{ mcp_docker_network }}"
+    state: present
+  become: true
+  tags: ["mcp-ref", "docker"]
+
+# =============================================================================
+# Docker Compose
+# =============================================================================
+- name: Deploy Docker Compose file for ref MCP
+  ansible.builtin.template:
+    src: docker-compose.mcp-ref.yml.j2
+    dest: "{{ mcp_ref_dir }}/docker-compose.mcp-ref.yml"
+    owner: "{{ mcp_owner }}"
+    group: "{{ mcp_owner }}"
+    mode: "0644"
+  become: true
+  become_user: "{{ mcp_owner }}"
+  notify: restart mcp ref
+  tags: ["mcp-ref", "compose"]
+
+- name: Ensure ref MCP service is running
+  community.docker.docker_compose_v2:
+    project_src: "{{ mcp_ref_dir }}"
+    files:
+      - docker-compose.mcp-ref.yml
+    state: present
+    pull: "{{ mcp_compose_pull_policy }}"
+  become: true
+  become_user: "{{ mcp_owner }}"
+  tags: ["mcp-ref", "compose"]
+
+# =============================================================================
+# Systemd User Service
+# =============================================================================
+- name: Enable lingering for {{ mcp_owner }}
+  ansible.builtin.command: "loginctl enable-linger {{ mcp_owner }}"
+  when: mcp_enable_lingering | bool
+  changed_when: false
+  failed_when: false
+  become: true
+  tags: ["mcp-ref", "systemd"]
+
+- name: Install systemd user service for ref MCP
+  ansible.builtin.template:
+    src: mcp-ref.service.j2
+    dest: "{{ mcp_home }}/.config/systemd/user/{{ mcp_ref_service_name }}"
+    owner: "{{ mcp_owner }}"
+    group: "{{ mcp_owner }}"
+    mode: "0644"
+  become: true
+  become_user: "{{ mcp_owner }}"
+  notify: reload systemd user
+  tags: ["mcp-ref", "systemd"]
+
+- name: Enable and start ref MCP service
+  ansible.builtin.systemd:
+    name: "{{ mcp_ref_service_name }}"
+    scope: user
+    enabled: true
+    daemon_reload: true
+    state: started
+  become: true
+  become_user: "{{ mcp_owner }}"
+  tags: ["mcp-ref", "systemd"]
+
+# =============================================================================
+# Register MCP Server
+# =============================================================================
+- name: Register ref MCP server for claude_code
+  ansible.builtin.set_fact:
+    mcp_servers_registered: "{{ mcp_servers_registered | default([]) + [mcp_ref_info] }}"
+  vars:
+    mcp_ref_info:
+      name: "ref"
+      type: "stdio"
+      command: "docker"
+      args:
+        - "exec"
+        - "-i"
+        - "{{ mcp_ref_container_name }}"
+        - "npx"
+        - "{{ mcp_ref_npm_package }}"
+      env: {}
+  delegate_to: localhost
+  delegate_facts: true
+  tags: ["mcp-ref", "register"]

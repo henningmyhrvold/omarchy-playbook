@@ -1,0 +1,15 @@
+---
+# Folders Role - Creates directories from config.yml (create_folders variable)
+
+- name: Create additional directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ target_user }}"
+    group: "{{ target_user }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ create_folders | default([]) }}"
+  become: true
+  become_user: "{{ target_user }}"
+  when: create_folders is defined
+  tags: ["folders"]

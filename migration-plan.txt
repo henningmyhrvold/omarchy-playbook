@@ -1,0 +1,442 @@
+# Omarchy Migration Plan — Final
+
+## Overview
+
+Migrate two repos (`omarchy-dotfiles` and `omarchy-playbook`) to work cleanly on top of Omarchy,
+respecting its layered config system and surviving `omarchy-update`.
+
+### Core Principles
+
+- **Never modify** `~/.local/share/omarchy/` — always override via `~/.config/`
+- **Bash stays as login shell** — zsh launches only inside Ghostty
+- **Omarchy owns**: Hyprland, Waybar, Walker, Mako, Neovim, fonts, audio, SDDM, Ghostty theming
+- **Ansible owns**: packages, system services, Docker, MCP, security hardening, dotfile symlinks
+- **omarchy-mods.sh**: runs once at bootstrap for one-time Omarchy customizations (themes)
+
+---
+
+## Part 1 — omarchy-dotfiles repo changes
+
+### Files to KEEP (these layer cleanly)
+
+| File | Symlink target | Notes |
+|------|---------------|-------|
+| `zsh/.zshrc` | `~/.zshrc` | Refactor needed (see below) |
+| `zsh/.zsh_profile` | `~/.zsh_profile` | Keep as-is |
+| `zsh/.p10k.zsh` | `~/.p10k.zsh` | Keep as-is |
+| `tmux/tmux.conf` | `~/.config/tmux/tmux.conf` | Keep as-is |
+| `tmux-sessionizer/tmux-sessionizer.conf` | `~/.config/tmux-sessionizer/tmux-sessionizer.conf` | Keep as-is |
+| `tmux-sessionizer/tmux-sessionizer.sh` | `~/.local/bin/tmux-sessionizer.sh` | Keep as-is, mark executable |
+| `tmux-sessionizer/tmux-status-color.sh` | `~/.local/bin/tmux-status-color.sh` | Keep as-is, mark executable |
+| `mcp/hub.json` | `~/.config/mcp/hub.json` | Keep as-is |
+| `mcp/mcphub.json` | `~/.config/mcp/mcphub.json` | Keep as-is |
+| `mcp/docker-compose.mcp.yml` | `~/.config/mcp/docker-compose.mcp.yml` | Keep as-is |
+
+### Files to REFACTOR
+
+#### `zsh/.zshrc`
+
+Changes needed:
+
+1. **Remove** `export XDG_SESSION_TYPE=wayland` — Omarchy's Hyprland env config handles this
+2. **Add** at the bottom: `source ~/.local/share/omarchy/default/bash/aliases 2>/dev/null`
+   so you get Omarchy's shell aliases (gcam, ff, zoxide, etc.) in zsh.
+   The `2>/dev/null` silences errors if any bash-only syntax sneaks in; for full
+   compatibility you may need to port some aliases manually.
+3. **Verify** oh-my-zsh path `/usr/share/oh-my-zsh/` — this needs to exist, installed by the zsh role
+4. Everything else (p10k instant prompt, fzf, history, aliases) is fine
+
+#### `ghostty/config`
+
+- **Rename** to `ghostty/config.reference` — kept in repo for reference only
+- **Not symlinked** — Omarchy's theme system manages `~/.config/ghostty/config`
+- Ansible's ghostty role will instead use `lineinfile` to inject non-theme settings
+  into the Omarchy-managed config (see Part 2)
+
+#### `omarchy-mods.sh`
+
+- Remove the incomplete second `omarchy-theme-install` line
+- Final content:
+
+```bash
+#!/bin/bash
+set -e
+# One-time Omarchy customizations — run once by bootstrap.sh
+
+# Theme hook for additional theme support
+curl -fsSL https://imbypass.github.io/omarchy-theme-hook/install.sh | bash
+
+# Install extra themes
+omarchy-theme-install https://github.com/abhijeet-swami/omarchy-spectra-theme
+```
+
+### Files/dirs to REMOVE
+
+| Path | Reason |
+|------|--------|
+| `wallpapers/` | Empty dir; Omarchy manages wallpapers via theme system |
+
+### Files to ADD
+
+None needed at this stage. Hyprland overrides are not required since you're using
+stock Omarchy for Hyprland, Waybar, Walker, and monitors.
+
+---
+
+## Part 2 — omarchy-playbook changes
+
+### Roles to DELETE
+
+| Role | Reason |
+|------|--------|
+| `hyprland` | Omarchy fully manages Hyprland, Waybar, Walker, Mako |
+| `sddm` | Omarchy manages the display manager |
+| `fonts` | Omarchy ships fonts (JetBrains Mono, Nerd Fonts, etc.) |
+| `audio` | Omarchy configures PipeWire |
+| `acpi` | Omarchy handles power/lid events |
+| `permissions` | Was for p10k dir fix — no longer needed |
+| `luarocks311` | Was for custom nvim — using Omarchy's nvim now |
+| `rust` | Omarchy comes with Rust pre-installed |
+| `nvim` | Using Omarchy's default Neovim setup |
+| `mcp_github` | Removing GitHub MCP server |
+| `npm_global` | Was for global MCP npm packages — all MCP now in Docker |
+| `copy` | Review: likely empty/unused after removing desktop configs |
+
+### Roles to REFACTOR
+
+#### `zsh` role
+
+**Remove:**
+- The `chsh` / `ansible.builtin.user` task that sets zsh as default shell
+
+**Keep:**
+- Package installation: `zsh`, `oh-my-zsh` (or `zsh-theme-powerlevel10k`, `oh-my-zsh-git`),
+  `zsh-autosuggestions`, `zsh-syntax-highlighting`
+- Symlinks for `.zshrc`, `.zsh_profile`, `.p10k.zsh`
+- Directory creation for `~/.zsh`
+
+**Add:**
+- Nothing — the Ghostty role handles launching zsh
+
+#### `ghostty` role
+
+**Remove:**
+- Package installation (Ghostty already installed by Omarchy)
+- Full config symlink/template
+- Dotfiles clone task (handled by dotfiles role)
+
+**Replace with:**
+- Use `ansible.builtin.lineinfile` to idempotently inject non-theme settings into
+  `~/.config/ghostty/config`. This way Omarchy's theme system can still rewrite the file
+  on theme changes, and on next Ansible run the lines get re-added.
+
+```yaml
+# New ghostty role approach
+- name: Ensure Ghostty launches zsh
+  ansible.builtin.lineinfile:
+    path: "{{ ghostty_home }}/.config/ghostty/config"
+    regexp: '^command\s*='
+    line: 'command = zsh'
+    create: false
+  become: true
+  become_user: "{{ ghostty_user }}"
+
+- name: Set Ghostty background opacity
+  ansible.builtin.lineinfile:
+    path: "{{ ghostty_home }}/.config/ghostty/config"
+    regexp: '^background-opacity\s*='
+    line: 'background-opacity = 0.85'
+    create: false
+  become: true
+  become_user: "{{ ghostty_user }}"
+
+- name: Set Ghostty shell integration features
+  ansible.builtin.lineinfile:
+    path: "{{ ghostty_home }}/.config/ghostty/config"
+    regexp: '^shell-integration-features\s*='
+    line: 'shell-integration-features = no-cursor,no-sudo,no-title'
+    create: false
+  become: true
+  become_user: "{{ ghostty_user }}"
+
+- name: Disable Ghostty GTK titlebar
+  ansible.builtin.lineinfile:
+    path: "{{ ghostty_home }}/.config/ghostty/config"
+    regexp: '^gtk-titlebar\s*='
+    line: 'gtk-titlebar = false'
+    create: false
+  become: true
+  become_user: "{{ ghostty_user }}"
+
+- name: Disable Ghostty close confirmation
+  ansible.builtin.lineinfile:
+    path: "{{ ghostty_home }}/.config/ghostty/config"
+    regexp: '^confirm-close-surface\s*='
+    line: 'confirm-close-surface = false'
+    create: false
+  become: true
+  become_user: "{{ ghostty_user }}"
+```
+
+**Important caveat:** When you switch Omarchy themes, the theme system regenerates
+`~/.config/ghostty/config`. Your injected lines will be lost until next Ansible run.
+This is acceptable — just re-run `ansible-playbook playbook.yml --tags ghostty` after
+a theme switch if the settings disappear. Alternatively, we can add a post-theme-switch
+hook later.
+
+#### `pacman` role
+
+**Remove:**
+- Reflector / mirrorlist management — Omarchy handles mirrors
+
+**Keep:**
+- `Update package cache` task
+- `Install packages from pacman_installed_packages` task
+
+#### `dotfiles` role defaults
+
+**New `dotfiles_default_links`:**
+
+```yaml
+dotfiles_default_links:
+  - { src: "zsh/.zshrc", dest: ".zshrc" }
+  - { src: "zsh/.zsh_profile", dest: ".zsh_profile" }
+  - { src: "zsh/.p10k.zsh", dest: ".p10k.zsh" }
+  - { src: "tmux/tmux.conf", dest: ".config/tmux/tmux.conf" }
+  - { src: "tmux-sessionizer/tmux-sessionizer.conf", dest: ".config/tmux-sessionizer/tmux-sessionizer.conf" }
+  - { src: "tmux-sessionizer/tmux-sessionizer.sh", dest: ".local/bin/tmux-sessionizer.sh" }
+  - { src: "tmux-sessionizer/tmux-status-color.sh", dest: ".local/bin/tmux-status-color.sh" }
+  - { src: "mcp/hub.json", dest: ".config/mcp/hub.json" }
+  - { src: "mcp/mcphub.json", dest: ".config/mcp/mcphub.json" }
+  - { src: "mcp/docker-compose.mcp.yml", dest: ".config/mcp/docker-compose.mcp.yml" }
+
+dotfiles_files_binaries:
+  - "tmux-sessionizer/tmux-sessionizer.sh"
+  - "tmux-sessionizer/tmux-status-color.sh"
+```
+
+### `config.yml` — full cleanup
+
+**Remove from `dotfiles_links`:**
+All hyprland, waybar, wofi, dunst, fontconfig, cool-retro-term, nvim entries
+
+**Remove from `create_folders`:**
+Entries for: hypr, waybar, wofi, dunst, fontconfig, colors, cool-retro-term, nvim
+
+**Keep in `create_folders`:**
+```yaml
+create_folders:
+  - { path: "{{ dotfiles_home }}/Pictures" }
+  - { path: "{{ dotfiles_home }}/Pictures/wallpapers" }
+  - { path: "{{ dotfiles_home }}/Pictures/icons" }
+  - { path: "{{ dotfiles_home }}/Documents" }
+  - { path: "{{ dotfiles_home }}/Downloads" }
+  - { path: "{{ dotfiles_home }}/.config/tmux" }
+  - { path: "{{ dotfiles_home }}/.config/tmux-sessionizer" }
+  - { path: "{{ dotfiles_home }}/.config/mcp" }
+  - { path: "{{ dotfiles_home }}/.config/Claude" }
+  - { path: "{{ dotfiles_home }}/.local/bin" }
+  - { path: "{{ dotfiles_home }}/.zsh" }
+```
+
+**Trim `pacman_installed_packages`:**
+
+Remove (Omarchy already provides):
+- `fzf`, `fd`, `bat`, `ripgrep`, `htop`, `unzip`, `curl`, `fastfetch`, `jq`
+
+Keep (not in Omarchy):
+- `mesa`, `nautilus`, `loupe`, `gnome-calendar`, `gnome-calculator`, `showtime`
+- `wget`, `tree`, `lsof`, `smartmontools`, `rsync`, `fwupd`, `pacman-contrib`
+- Networking: `wireless_tools`, `wpa_supplicant`, `network-manager-applet`, `openssh`,
+  `openssl`, `nmap`, `tcpdump`, `wireshark-cli`
+- Programming: `lua`, `stylua`, `go`, `python-uv`, `python-dateutil`, `python-requests`,
+  `python-gobject`, `direnv`, `terraform`, `tk`
+- Productivity: `gedit`, `vlc`
+- HW dev: `subversion`, `bc`, `ccache`, `time`, `usbutils`, `picocom`, `minicom`, `tftp-hpa`
+
+**Trim `aur_installed_packages`:**
+Keep: `zen-browser-bin`, `google-chrome`, `omnissa-horizon-client`, `cool-retro-term`, `tio`, `kermit`
+
+**Remove `npm_global_packages` section entirely.**
+
+**Remove feature toggles for removed roles:**
+- `mcp_github_enabled` → remove
+
+### Roles to KEEP unchanged
+
+| Role | Notes |
+|------|-------|
+| `docker_engine` | Docker + BuildKit setup |
+| `nftables` | Firewall hardening |
+| `wireguard` | VPN with killswitch |
+| `apparmor` | MAC security |
+| `dns` | systemd-resolved config |
+| `claude_desktop_wayland` | Claude Desktop Wayland patches |
+| `claude_code` | Claude Code CLI + MCP registration |
+| `mcp_filesystem` | Docker MCP filesystem server |
+| `mcp_ref` | Docker MCP Context7 server |
+| `mcp_hub_ui` | MCP Hub web UI |
+| `docker_mcp` | Docker-in-Docker MCP server |
+| `thunderbird_headless` | Headless mail with systemd timer |
+| `tmux` | Tmux + TPM setup |
+| `aur` | AUR helper (paru) setup — verify Omarchy uses yay, may need adjustment |
+| `folders` | Directory creation |
+| `links` | Extra symlinks |
+| `dotfiles` | Repo clone + symlinks |
+| `aur-packages` | AUR package installation |
+
+---
+
+## Part 3 — playbook.yml new structure
+
+```yaml
+---
+- hosts: workstation
+  become: true
+  vars_files:
+    - config.yml
+
+  roles:
+    # Core packages (your additions on top of Omarchy)
+    - { role: pacman, tags: ["pacman", "packages"] }
+    - { role: aur, tags: ["aur", "packages"] }
+
+    # Shell (installs zsh + oh-my-zsh + p10k — does NOT chsh)
+    - { role: zsh, tags: ["zsh", "shell"] }
+
+    # Terminal (injects non-theme settings into Omarchy's Ghostty config)
+    - { role: ghostty, tags: ["ghostty", "terminal"] }
+
+    # Development tools
+    - { role: tmux, tags: ["tmux", "terminal"] }
+
+    # System services
+    - { role: dns, tags: ["dns", "network"] }
+    - { role: nftables, tags: ["nftables", "firewall"] }
+    - { role: apparmor, tags: ["apparmor", "security"] }
+    - { role: wireguard, tags: ["wireguard", "vpn"] }
+
+    # Containers
+    - { role: docker_engine, tags: ["docker"] }
+
+    # Applications
+    - role: thunderbird_headless
+      tags: ["thunderbird"]
+      vars:
+        thunderbird_enable_lingering: true
+        thunderbird_refresh_method: "timer"
+        thunderbird_refresh_interval: "1min"
+
+    # AI Tools
+    - { role: claude_desktop_wayland, tags: ["claude-desktop", "ai"] }
+    - { role: claude_code, tags: ["claude-code", "ai"] }
+
+    # MCP Servers (Docker-based)
+    - { role: mcp_filesystem, tags: ["mcp", "mcp-filesystem"], when: mcp_filesystem_enabled | default(true) }
+    - { role: mcp_ref, tags: ["mcp", "mcp-ref"], when: mcp_ref_enabled | default(true) }
+    - { role: mcp_hub_ui, tags: ["mcp", "mcp-hub-ui"] }
+    - { role: docker_mcp, tags: ["mcp", "docker-mcp"] }
+
+    # Utility (dotfiles, folders, extra links)
+    - { role: repos, when: configure_repos | default(false), tags: ["repos"] }
+    - { role: folders, tags: ["folders"] }
+    - { role: dotfiles, tags: ["dotfiles"] }
+    - { role: links, tags: ["links"] }
+    - { role: aur-packages, tags: ["aur-packages", "packages"] }
+```
+
+---
+
+## Part 4 — bootstrap.sh refactor
+
+```bash
+#!/bin/bash
+set -e
+
+DOTFILES_PLAYBOOK="$HOME/src/omarchy-playbook"
+DOTFILES="$HOME/src/omarchy-dotfiles"
+DOTSSH="$HOME/.ssh"
+
+# Verify Omarchy is installed
+if [ ! -d "$HOME/.local/share/omarchy" ]; then
+    echo "Error: Omarchy not detected. Install Omarchy first."
+    exit 1
+fi
+
+# Install Ansible if not present (yay is Omarchy's AUR helper)
+if ! command -v ansible &> /dev/null; then
+    echo "Installing Ansible..."
+    yay -S --noconfirm ansible
+fi
+
+# Create SSH key if needed
+if [ ! -f "$DOTSSH/id_ed25519" ]; then
+    echo "Creating SSH Ed25519 key..."
+    mkdir -p "$DOTSSH"
+    chmod 700 "$DOTSSH"
+    ssh-keygen -t ed25519 -f "$DOTSSH/id_ed25519" -N "" -C "$USER@$(uname -n)"
+    cat "$DOTSSH/id_ed25519.pub" >> "$DOTSSH/authorized_keys"
+    chmod 600 "$DOTSSH/authorized_keys"
+    echo "SSH key created."
+fi
+
+# Run one-time Omarchy mods (themes, etc.)
+if [ -f "$DOTFILES/omarchy-mods.sh" ]; then
+    echo "Running one-time Omarchy modifications..."
+    bash "$DOTFILES/omarchy-mods.sh"
+fi
+
+# Install Ansible requirements
+echo "Installing Ansible requirements..."
+ansible-galaxy install -r "$DOTFILES_PLAYBOOK/requirements.yml"
+
+# Run playbook
+echo "Running Ansible playbook..."
+cd "$DOTFILES_PLAYBOOK"
+ansible-playbook playbook.yml --diff -v --ask-become-pass
+
+echo "Done!"
+```
+
+---
+
+## Part 5 — AUR helper check
+
+Omarchy uses **yay** as its AUR helper. Your `aur` role currently sets up **paru**.
+You need to decide:
+
+- **Option A:** Switch the aur role to use yay (consistent with Omarchy)
+- **Option B:** Install paru alongside yay (both work fine, just redundant)
+
+Recommendation: Switch to yay. The `kewlfft.aur` Ansible collection supports both —
+just change the `use` parameter from `paru` to `yay` in your AUR tasks.
+
+---
+
+## Part 6 — Risk assessment
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| Ghostty config lost on theme switch | Low | Re-run `--tags ghostty`; or add post-theme hook later |
+| nftables blocks Omarchy services | Medium | Test rules; ensure localhost/loopback accepted (already in template) |
+| DNS role conflicts with NetworkManager | Low | Already handles NM config; test on Omarchy |
+| Docker group not active until re-login | Low | Existing behavior; bootstrap note to re-login |
+| AUR helper mismatch (paru vs yay) | Low | Switch to yay |
+| `.zshrc` sources bash aliases imperfectly | Low | Some bash functions may not work; port manually as needed |
+| `omarchy-update` resets Ghostty config | Low | Same as theme switch — re-run ghostty tag |
+
+---
+
+## Implementation order
+
+1. **omarchy-dotfiles**: Rename ghostty config, edit .zshrc, clean omarchy-mods.sh, remove wallpapers/
+2. **omarchy-playbook**: Delete removed roles (12 roles)
+3. **omarchy-playbook**: Refactor zsh role (remove chsh)
+4. **omarchy-playbook**: Refactor ghostty role (lineinfile approach)
+5. **omarchy-playbook**: Refactor pacman role (remove reflector)
+6. **omarchy-playbook**: Clean config.yml (trim links, folders, packages)
+7. **omarchy-playbook**: Update playbook.yml (new role list)
+8. **omarchy-playbook**: Refactor bootstrap.sh
+9. **omarchy-playbook**: Switch aur role to yay (if choosing Option A)
+10. **Test**: Dry run with `ansible-playbook playbook.yml --check --diff`
+11. **Test**: Apply to a fresh Omarchy install

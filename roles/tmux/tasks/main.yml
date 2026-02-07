@@ -1,0 +1,83 @@
+---
+# Tmux Role - Self-contained tasks
+# Installs Tmux and TPM
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install Tmux packages from pacman
+  community.general.pacman:
+    name: "{{ tmux_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["tmux", "packages"]
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Create Tmux directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ tmux_user }}"
+    group: "{{ tmux_user }}"
+    mode: "0755"
+  loop: "{{ tmux_folders }}"
+  become: true
+  become_user: "{{ tmux_user }}"
+  tags: ["tmux", "folders"]
+
+# =============================================================================
+# TPM Installation
+# =============================================================================
+- name: Set up Tmux Plugin Manager (TPM)
+  ansible.builtin.git:
+    repo: "{{ tmux_tpm_repo }}"
+    dest: "{{ tmux_tpm_dest }}"
+    force: false
+  become: true
+  become_user: "{{ tmux_user }}"
+  tags: ["tmux", "tpm"]
+
+# =============================================================================
+# Dotfiles
+# =============================================================================
+- name: Clone dotfiles repository for Tmux configs
+  ansible.builtin.git:
+    repo: "{{ tmux_dotfiles_repo }}"
+    dest: "{{ tmux_dotfiles_dest }}"
+    force: false
+    update: false
+  become: true
+  become_user: "{{ tmux_user }}"
+  ignore_errors: true
+  tags: ["tmux", "dotfiles"]
+
+# =============================================================================
+# Symlinks
+# =============================================================================
+- name: Create Tmux config symlinks
+  ansible.builtin.file:
+    src: "{{ tmux_dotfiles_dest }}/{{ item.src }}"
+    dest: "{{ tmux_home }}/{{ item.dest }}"
+    state: link
+    force: true
+    owner: "{{ tmux_user }}"
+  loop: "{{ tmux_links }}"
+  become: true
+  become_user: "{{ tmux_user }}"
+  ignore_errors: true
+  tags: ["tmux", "symlinks"]
+
+# =============================================================================
+# Make Scripts Executable
+# =============================================================================
+- name: Ensure tmux scripts are executable
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "0755"
+  loop: "{{ tmux_executables }}"
+  become: true
+  become_user: "{{ tmux_user }}"
+  ignore_errors: true
+  tags: ["tmux", "permissions"]
