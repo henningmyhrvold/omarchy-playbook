@@ -1,16 +1,18 @@
 ---
-- name: restart mcp-ref
-  become: true
-  become_user: "{{ mcp_owner }}"
-  ansible.builtin.systemd:
-    name: "{{ mcp_ref_service_name }}"
-    scope: user
-    state: restarted
-    daemon_reload: true
+# handlers/main.yml for mcp_ref role
 
-- name: reload mcp-ref systemd
+- name: restart mcp ref
+  community.docker.docker_compose_v2:
+    project_src: "{{ mcp_ref_dir }}"
+    files:
+      - docker-compose.mcp-ref.yml
+    state: restarted
   become: true
   become_user: "{{ mcp_owner }}"
-  ansible.builtin.command: "systemctl --user daemon-reload"
-  changed_when: false
-  failed_when: false
+
+- name: reload systemd user
+  ansible.builtin.systemd:
+    daemon_reload: true
+    scope: user
+  become: true
+  become_user: "{{ mcp_owner }}"

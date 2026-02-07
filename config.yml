@@ -44,6 +44,8 @@ git_repositories_external: []
 #   fzf, fd, bat, ripgrep, htop, unzip, curl, fastfetch, jq
 # =============================================================================
 pacman_installed_packages:
+  # --- Themes ---
+  - adw-gtk-theme
   # --- Additional CLI Tools ---
   - wget
   - jq
