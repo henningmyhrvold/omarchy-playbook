@@ -11,12 +11,15 @@ if [ ! -d "$HOME/.local/share/omarchy" ]; then
     exit 1
 fi
 
+# Full system upgrade
+echo "Upgrading system packages..."
+sudo pacman -Syu --noconfirm
+
 # Install Ansible if not present
-# Use sudo pacman (ansible is in the official extra repo, not AUR)
 if ! command -v ansible &> /dev/null; then
     echo "Installing Ansible..."
-    sudo pacman -S --noconfirm --needed ansible python-packaging
-    hash -r  # refresh shell's command cache so ansible-galaxy is found
+    sudo pacman -S --noconfirm ansible
+    hash -r
 fi
 
 # Create SSH key if needed
