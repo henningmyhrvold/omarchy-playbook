@@ -33,12 +33,6 @@ if [ ! -f "$DOTSSH/id_ed25519" ]; then
     echo "SSH key created."
 fi
 
-# Run one-time Omarchy mods (themes, etc.)
-if [ -f "$DOTFILES/omarchy-mods.sh" ]; then
-    echo "Running one-time Omarchy modifications..."
-    bash "$DOTFILES/omarchy-mods.sh"
-fi
-
 # Install Ansible requirements
 echo "Installing Ansible requirements..."
 ansible-galaxy install -r "$DOTFILES_PLAYBOOK/requirements.yml"
