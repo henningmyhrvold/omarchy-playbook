@@ -1,53 +1,15 @@
 ---
-# Claude Code Role - Self-contained tasks
-# Installs Claude Code CLI and configures MCP servers
+# Claude Code Role - Simplified for Omarchy
+# Claude Code is available in Omarchy's official repository
 
 # =============================================================================
 # Package Installation
 # =============================================================================
-- name: Install Node.js and npm from pacman
+- name: Install Claude Code from Omarchy repository
   community.general.pacman:
-    name: "{{ claude_code_pacman_packages }}"
+    name: claude-code
     state: present
   become: true
-  tags: ["claude-code", "packages"]
-
-- name: Check if paru is installed (for AUR)
-  ansible.builtin.command: which paru
-  register: paru_check
-  changed_when: false
-  failed_when: false
-  tags: ["claude-code", "packages"]
-
-# Temporarily allow passwordless pacman for AUR installation
-- name: Allow target user to run pacman without password (for AUR)
-  ansible.builtin.lineinfile:
-    path: /etc/sudoers.d/claude-code-aur-temp
-    line: '{{ claude_code_user }} ALL=(ALL) NOPASSWD: /usr/bin/pacman *'
-    create: true
-    mode: '0440'
-    validate: /usr/sbin/visudo -cf %s
-  become: true
-  when: paru_check.rc == 0
-  tags: ["claude-code", "packages"]
-
-- name: Install Claude Code from AUR
-  kewlfft.aur.aur:
-    name: "{{ item }}"
-    use: paru
-    state: present
-  loop: "{{ claude_code_aur_packages }}"
-  become: true
-  become_user: "{{ claude_code_user }}"
-  when: paru_check.rc == 0
-  tags: ["claude-code", "packages"]
-
-- name: Remove temporary sudoers rule for AUR
-  ansible.builtin.file:
-    path: /etc/sudoers.d/claude-code-aur-temp
-    state: absent
-  become: true
-  when: paru_check.rc == 0
   tags: ["claude-code", "packages"]
 
 # =============================================================================
@@ -60,33 +22,11 @@
     owner: "{{ claude_code_user }}"
     group: "{{ claude_code_user }}"
     mode: "0755"
-  loop: "{{ claude_code_folders }}"
+  loop:
+    - "{{ claude_code_home }}/.claude"
+    - "{{ claude_code_home }}/.local/bin"
   become: true
-  become_user: "{{ claude_code_user }}"
   tags: ["claude-code", "folders"]
-
-# =============================================================================
-# PATH Configuration
-# =============================================================================
-- name: Ensure npm global bin is in PATH (zshrc)
-  ansible.builtin.lineinfile:
-    path: "{{ claude_code_home }}/.zshrc"
-    line: 'export PATH="{{ npm_global_prefix }}/bin:$PATH"'
-    create: true
-    state: present
-  become: true
-  become_user: "{{ claude_code_user }}"
-  tags: ["claude-code", "config"]
-
-- name: Ensure npm global bin is in PATH (bashrc)
-  ansible.builtin.lineinfile:
-    path: "{{ claude_code_home }}/.bashrc"
-    line: 'export PATH="{{ npm_global_prefix }}/bin:$PATH"'
-    create: true
-    state: present
-  become: true
-  become_user: "{{ claude_code_user }}"
-  tags: ["claude-code", "config"]
 
 # =============================================================================
 # Check Claude Code Installation
@@ -96,25 +36,20 @@
   register: _claude_check
   changed_when: false
   failed_when: false
-  become: true
-  become_user: "{{ claude_code_user }}"
-  tags: ["claude-code", "config"]
+  tags: ["claude-code", "verify"]
 
-- name: Display message if Claude Code not found
+- name: Display Claude Code installation status
   ansible.builtin.debug:
-    msg: |
-      ⚠️  Claude Code CLI not found in PATH
-      It should be installed by the AUR packages
-      Make sure paru is installed and AUR packages ran
-  when: _claude_check.rc != 0
-  tags: ["claude-code", "config"]
+    msg: "✓ Claude Code is installed at {{ _claude_check.stdout }}"
+  when: _claude_check.rc == 0
+  tags: ["claude-code", "verify"]
 
 # =============================================================================
 # MCP Container Discovery
 # =============================================================================
 - name: Discover running MCP containers
   ansible.builtin.shell: |
-    docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep '^mcp-' | grep -v 'mcp-mcp-docker' || true
+    docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep '^mcp-' || true
   register: _mcp_containers
   changed_when: false
   ignore_errors: true
@@ -126,20 +61,12 @@
 - name: Generate Claude Code configuration from running containers
   ansible.builtin.template:
     src: claude-config.json.j2
-    dest: "{{ claude_code_config_dir }}/claude.json"
+    dest: "{{ claude_code_home }}/.claude/claude.json"
     mode: '0600'
+    owner: "{{ claude_code_user }}"
+    group: "{{ claude_code_user }}"
   become: true
-  become_user: "{{ claude_code_user }}"
   when: _mcp_containers is defined
-  tags: ["claude-code", "config"]
-
-- name: Create MCP server registration script
-  ansible.builtin.template:
-    src: register-mcp-servers.sh.j2
-    dest: "{{ claude_code_home }}/.local/bin/register-claude-mcp-servers.sh"
-    mode: '0755'
-  become: true
-  become_user: "{{ claude_code_user }}"
   tags: ["claude-code", "config"]
 
 # =============================================================================
@@ -149,8 +76,9 @@
   ansible.builtin.debug:
     msg: |
       Claude Code Configuration:
-      • Config file: {{ claude_code_config_dir }}/claude.json
-      • Registered MCP servers: {{ mcp_servers_registered | length }}
+      • Installed from: Omarchy repository
+      • Config file: {{ claude_code_home }}/.claude/claude.json
+      • Registered MCP servers: {{ (_mcp_containers.stdout_lines | default([])) | length }}
 
       Usage:
       1. Ensure MCP servers are running:
@@ -163,6 +91,6 @@
 
       Manage MCP servers:
       systemctl --user status 'mcp-*'
-      systemctl --user restart mcp-github
+      systemctl --user restart mcp-filesystem
       journalctl --user -u mcp-filesystem -f
   tags: ["claude-code"]

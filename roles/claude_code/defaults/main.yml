@@ -1,7 +1,20 @@
 ---
+# Claude Code Role - Simplified defaults for Omarchy
+# Claude Code installed directly from Omarchy repository
+
 claude_code_user: "{{ target_user | default(ansible_facts['user_id']) }}"
 claude_code_home: "/home/{{ claude_code_user }}"
-claude_code_config_dir: "{{ claude_code_home }}/.config/claude"
-claude_code_npm_package: "@anthropic-ai/claude-code"
-claude_code_install_method: "npm"
+
+# =============================================================================
+# Directory Configuration
+# =============================================================================
+claude_code_config_dir: "{{ claude_code_home }}/.claude"
+
+# =============================================================================
+# MCP Configuration
+# These will be populated by MCP server roles registering themselves
+# =============================================================================
 mcp_servers_registered: []
+
+# GitHub token for MCP GitHub server (from environment)
+github_token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
