@@ -23,12 +23,12 @@ table inet filter {
     udp dport mdns ip daddr 224.0.0.251 accept comment "Accept mDNS (IPv4)"
     ip6 saddr @LANv6 accept comment "Accept local IPv6 traffic"
     ip saddr @LANv4 accept comment "Accept local IPv4 traffic"
-{%- if nftables_allowed_tcp_ports %}
+{% if nftables_allowed_tcp_ports -%}
     tcp dport { {{ nftables_allowed_tcp_ports | join(', ') }} } accept comment "Accept specified TCP ports"
-{%- endif %}
-{%- if nftables_allowed_udp_ports %}
+{% endif -%}
+{% if nftables_allowed_udp_ports -%}
     udp dport { {{ nftables_allowed_udp_ports | join(', ') }} } accept comment "Accept specified UDP ports"
-{%- endif %}
+{% endif -%}
   }
 
   chain forward {
