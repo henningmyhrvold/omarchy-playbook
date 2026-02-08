@@ -86,9 +86,9 @@ aur_installed_packages:
   - google-chrome
   - lazydocker
   - omnissa-horizon-client
-  - cool-retro-term
-  - tio
-  - kermit
+ # - cool-retro-term
+ # - tio
+ # - kermit
 
 # =============================================================================
 # Additional Folders to Create (via folders role)
