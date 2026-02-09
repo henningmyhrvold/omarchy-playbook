@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Visual Studio Code
+GenericName=Text Editor
+Comment=Code Editing. Redefined.
+Icon=visual-studio-code
+Exec=/usr/bin/code {% if vscode_wayland_enabled %}{% for flag in vscode_electron_flags %}{{ flag }} {% endfor %}{% endif %}%F
+Categories=Utility;TextEditor;Development;IDE;
+MimeType=text/plain;inode/directory;application/x-code-workspace;
+Actions=new-empty-window;
+Keywords=vscode;editor;code;ide;development;
+StartupWMClass=Code
+StartupNotify=true
+Terminal=false
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=/usr/bin/code {% if vscode_wayland_enabled %}{% for flag in vscode_electron_flags %}{{ flag }} {% endfor %}{% endif %}--new-window %F
+Icon=visual-studio-code

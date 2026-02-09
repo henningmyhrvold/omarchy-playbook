@@ -1,0 +1,208 @@
+---
+# VSCode Role - Self-contained tasks
+# Installs Visual Studio Code, configures for Wayland/Omarchy,
+# installs extensions, and deploys user settings
+
+# =============================================================================
+# Package Installation (AUR)
+# =============================================================================
+- name: Check if yay is installed (for AUR)
+  ansible.builtin.command: which yay
+  register: yay_check
+  changed_when: false
+  failed_when: false
+  tags: ["vscode", "packages"]
+
+- name: Check if paru is installed (for AUR)
+  ansible.builtin.command: which paru
+  register: paru_check
+  changed_when: false
+  failed_when: false
+  when: yay_check.rc != 0
+  tags: ["vscode", "packages"]
+
+- name: Set AUR helper
+  ansible.builtin.set_fact:
+    vscode_aur_helper: "{{ 'yay' if yay_check.rc == 0 else 'paru' }}"
+  tags: ["vscode", "packages"]
+
+# Temporarily allow passwordless pacman for AUR installation
+- name: Allow target user to run pacman without password (for AUR)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/vscode-aur-temp
+    line: "{{ vscode_user }} ALL=(ALL) NOPASSWD: /usr/bin/pacman *"
+    create: true
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  become: true
+  tags: ["vscode", "packages"]
+
+- name: Install VSCode from AUR
+  kewlfft.aur.aur:
+    name: "{{ item }}"
+    use: "{{ vscode_aur_helper }}"
+    state: present
+  loop: "{{ vscode_aur_packages }}"
+  become: true
+  become_user: "{{ vscode_user }}"
+  tags: ["vscode", "packages"]
+
+- name: Remove temporary sudoers rule for AUR
+  ansible.builtin.file:
+    path: /etc/sudoers.d/vscode-aur-temp
+    state: absent
+  become: true
+  tags: ["vscode", "packages"]
+
+# =============================================================================
+# Wayland / Electron Configuration
+# =============================================================================
+- name: Create VSCode config directory
+  ansible.builtin.file:
+    path: "{{ vscode_home }}/.config/Code - OSS/User"
+    state: directory
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ vscode_user }}"
+  tags: ["vscode", "config"]
+
+- name: Create VSCode User directory (Microsoft build)
+  ansible.builtin.file:
+    path: "{{ vscode_home }}/.config/Code/User"
+    state: directory
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ vscode_user }}"
+  tags: ["vscode", "config"]
+
+- name: Deploy Electron flags for Wayland
+  ansible.builtin.template:
+    src: code-flags.conf.j2
+    dest: "{{ vscode_home }}/.config/code-flags.conf"
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0644"
+  become: true
+  become_user: "{{ vscode_user }}"
+  when: vscode_wayland_enabled
+  tags: ["vscode", "wayland"]
+
+# =============================================================================
+# Desktop File (for Walker / Omarchy menu)
+# =============================================================================
+- name: Deploy VSCode desktop file with Wayland flags
+  ansible.builtin.template:
+    src: code-wayland.desktop.j2
+    dest: "{{ vscode_home }}/.local/share/applications/code-wayland.desktop"
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0644"
+  become: true
+  become_user: "{{ vscode_user }}"
+  when: vscode_desktop_file_install
+  tags: ["vscode", "desktop"]
+
+- name: Create local applications directory
+  ansible.builtin.file:
+    path: "{{ vscode_home }}/.local/share/applications"
+    state: directory
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ vscode_user }}"
+  tags: ["vscode", "desktop"]
+
+# Hide the original desktop file so Walker only shows our Wayland version
+- name: Hide original VSCode desktop entry
+  ansible.builtin.copy:
+    dest: "{{ vscode_home }}/.local/share/applications/code.desktop"
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=Visual Studio Code (X11)
+      NoDisplay=true
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0644"
+  become: true
+  become_user: "{{ vscode_user }}"
+  when: vscode_desktop_file_install and vscode_wayland_enabled
+  tags: ["vscode", "desktop"]
+
+# =============================================================================
+# Extensions
+# =============================================================================
+- name: Install VSCode extensions
+  ansible.builtin.command:
+    cmd: "code --install-extension {{ item }} --force"
+  loop: "{{ vscode_extensions }}"
+  become: true
+  become_user: "{{ vscode_user }}"
+  register: ext_result
+  changed_when: "'was successfully installed' in ext_result.stdout"
+  failed_when: false
+  tags: ["vscode", "extensions"]
+
+# =============================================================================
+# User Settings (settings.json)
+# =============================================================================
+- name: Deploy VSCode settings.json
+  ansible.builtin.template:
+    src: settings.json.j2
+    dest: "{{ vscode_home }}/.config/Code/User/settings.json"
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0644"
+    backup: true
+  become: true
+  become_user: "{{ vscode_user }}"
+  when: vscode_settings_managed
+  tags: ["vscode", "settings"]
+
+# Also deploy to Code - OSS path in case the OSS build is used
+- name: Deploy VSCode settings.json (OSS path)
+  ansible.builtin.template:
+    src: settings.json.j2
+    dest: "{{ vscode_home }}/.config/Code - OSS/User/settings.json"
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0644"
+    backup: true
+  become: true
+  become_user: "{{ vscode_user }}"
+  when: vscode_settings_managed
+  tags: ["vscode", "settings"]
+
+# =============================================================================
+# Keybindings (keybindings.json)
+# =============================================================================
+- name: Deploy VSCode keybindings.json
+  ansible.builtin.template:
+    src: keybindings.json.j2
+    dest: "{{ vscode_home }}/.config/Code/User/keybindings.json"
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0644"
+    backup: true
+  become: true
+  become_user: "{{ vscode_user }}"
+  when: vscode_keybindings_managed
+  tags: ["vscode", "keybindings"]
+
+- name: Deploy VSCode keybindings.json (OSS path)
+  ansible.builtin.template:
+    src: keybindings.json.j2
+    dest: "{{ vscode_home }}/.config/Code - OSS/User/keybindings.json"
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0644"
+    backup: true
+  become: true
+  become_user: "{{ vscode_user }}"
+  when: vscode_keybindings_managed
+  tags: ["vscode", "keybindings"]

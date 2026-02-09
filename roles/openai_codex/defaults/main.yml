@@ -1,0 +1,18 @@
+---
+# OpenAI Codex CLI Role - Self-contained
+# Installs OpenAI Codex terminal coding agent
+
+openai_codex_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+openai_codex_home: "/home/{{ openai_codex_user }}"
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+# openai-codex is in the official extra repo (Rust binary)
+openai_codex_pacman_packages:
+  - openai-codex
+
+# Optional dependencies
+openai_codex_optional_packages:
+  - git
+  - ripgrep

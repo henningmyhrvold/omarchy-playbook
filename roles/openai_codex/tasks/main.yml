@@ -1,0 +1,59 @@
+---
+# OpenAI Codex CLI Role - Self-contained tasks
+# Installs OpenAI Codex terminal coding agent (Rust binary from extra repo)
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install OpenAI Codex from pacman (extra repo)
+  community.general.pacman:
+    name: "{{ openai_codex_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["openai-codex", "packages"]
+
+- name: Install optional dependencies for Codex
+  community.general.pacman:
+    name: "{{ openai_codex_optional_packages }}"
+    state: present
+  become: true
+  tags: ["openai-codex", "packages"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Check if codex CLI is installed
+  ansible.builtin.command: which codex
+  register: _codex_check
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ openai_codex_user }}"
+  tags: ["openai-codex", "verify"]
+
+- name: Get codex version
+  ansible.builtin.command: codex --version
+  register: _codex_version
+  changed_when: false
+  failed_when: false
+  when: _codex_check.rc == 0
+  become: true
+  become_user: "{{ openai_codex_user }}"
+  tags: ["openai-codex", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display OpenAI Codex setup summary
+  ansible.builtin.debug:
+    msg: |
+      OpenAI Codex CLI Configuration:
+      • Binary: /usr/bin/codex
+      • Version: {{ _codex_version.stdout | default('unknown') }}
+
+      First run:
+        codex
+      Then select "Sign in with ChatGPT" to authenticate.
+
+      Requires: ChatGPT Plus, Pro, Business, Edu, or Enterprise plan.
+  tags: ["openai-codex"]

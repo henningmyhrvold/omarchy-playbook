@@ -1,0 +1,21 @@
+---
+# Gemini CLI Role - Self-contained
+# Installs Google Gemini CLI terminal coding agent
+
+gemini_cli_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+gemini_cli_home: "/home/{{ gemini_cli_user }}"
+
+# =============================================================================
+# Package Installation (npm global)
+# =============================================================================
+# Gemini CLI requires Node.js >= 18
+gemini_cli_pacman_packages:
+  - nodejs
+  - npm
+
+gemini_cli_npm_package: "@google/gemini-cli"
+
+# =============================================================================
+# NPM Configuration
+# =============================================================================
+npm_global_prefix: "{{ gemini_cli_home }}/.npm-global"

@@ -18,13 +18,14 @@
     # Core packages (your additions on top of Omarchy)
     - { role: pacman, tags: ["pacman", "packages"] }
     - { role: aur, tags: ["aur", "packages"] }
-    - { role: aur-packages, tags: ["aur-packages", "packages"] }
+    - { role: aur_packages, tags: ["aur-packages", "packages"] }
 
     # Shell (installs zsh + oh-my-zsh + p10k — does NOT chsh)
     - { role: zsh, tags: ["zsh", "shell"] }
 
     # Development tools
     - { role: tmux, tags: ["tmux", "terminal"] }
+    - { role: vscode, tags: ["vscode", "dev", "editor"] }
 
     # System services
     - { role: dns, tags: ["dns", "network"] }
@@ -36,6 +37,8 @@
 
     # AI Tools
     - { role: claude_code, tags: ["claude-code", "ai"] }
+    - { role: openai_codex, tags: ["openai-code", "ai"] }
+    - { role: gemini_cli, tags: ["gemini-cli", "ai"] }
 
     # MCP Servers (Docker-based)
     - { role: mcp_filesystem, tags: ["mcp", "mcp-filesystem"], when: mcp_filesystem_enabled | default(true) }

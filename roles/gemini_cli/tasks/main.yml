@@ -1,0 +1,118 @@
+---
+# Gemini CLI Role - Self-contained tasks
+# Installs Google Gemini CLI terminal coding agent via npm
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install Node.js and npm from pacman
+  community.general.pacman:
+    name: "{{ gemini_cli_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["gemini-cli", "packages"]
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Ensure npm global directory exists
+  ansible.builtin.file:
+    path: "{{ npm_global_prefix }}"
+    state: directory
+    owner: "{{ gemini_cli_user }}"
+    group: "{{ gemini_cli_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ gemini_cli_user }}"
+  tags: ["gemini-cli", "folders"]
+
+- name: Ensure npm global bin directory exists
+  ansible.builtin.file:
+    path: "{{ npm_global_prefix }}/bin"
+    state: directory
+    owner: "{{ gemini_cli_user }}"
+    group: "{{ gemini_cli_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ gemini_cli_user }}"
+  tags: ["gemini-cli", "folders"]
+
+# =============================================================================
+# NPM Global Prefix Configuration
+# =============================================================================
+- name: Set npm global prefix for user
+  ansible.builtin.command: npm config set prefix "{{ npm_global_prefix }}"
+  become: true
+  become_user: "{{ gemini_cli_user }}"
+  changed_when: false
+  tags: ["gemini-cli", "config"]
+
+# =============================================================================
+# Install Gemini CLI
+# =============================================================================
+- name: Install Gemini CLI globally via npm
+  community.general.npm:
+    name: "{{ gemini_cli_npm_package }}"
+    global: true
+    state: present
+  become: true
+  become_user: "{{ gemini_cli_user }}"
+  environment:
+    NPM_CONFIG_PREFIX: "{{ npm_global_prefix }}"
+  tags: ["gemini-cli", "packages"]
+
+# =============================================================================
+# PATH Configuration
+# =============================================================================
+- name: Ensure npm global bin is in PATH (zshrc)
+  ansible.builtin.lineinfile:
+    path: "{{ gemini_cli_home }}/.zshrc"
+    line: 'export PATH="{{ npm_global_prefix }}/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ gemini_cli_user }}"
+  tags: ["gemini-cli", "config"]
+
+- name: Ensure npm global bin is in PATH (bashrc)
+  ansible.builtin.lineinfile:
+    path: "{{ gemini_cli_home }}/.bashrc"
+    line: 'export PATH="{{ npm_global_prefix }}/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ gemini_cli_user }}"
+  tags: ["gemini-cli", "config"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Check if gemini CLI is installed
+  ansible.builtin.command: "{{ npm_global_prefix }}/bin/gemini --version"
+  register: _gemini_check
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ gemini_cli_user }}"
+  tags: ["gemini-cli", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display Gemini CLI setup summary
+  ansible.builtin.debug:
+    msg: |
+      Gemini CLI Configuration:
+      • Binary: {{ npm_global_prefix }}/bin/gemini
+      • Version: {{ _gemini_check.stdout | default('unknown') }}
+      • npm package: {{ gemini_cli_npm_package }}
+
+      First run:
+        gemini
+      Then authenticate with your Google account.
+
+      Auth options:
+      • Google account (free tier: 60 req/min, 1000 req/day)
+      • API key: export GEMINI_API_KEY="YOUR_KEY"
+      • Vertex AI: export GOOGLE_API_KEY="KEY" GOOGLE_GENAI_USE_VERTEXAI=true
+  tags: ["gemini-cli"]

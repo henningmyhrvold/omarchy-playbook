@@ -1,0 +1,261 @@
+---
+# =============================================================================
+# VSCode Role - Default Variables
+# Override any of these in config.yml
+# =============================================================================
+
+# User configuration
+vscode_user: "{{ ansible_user_id }}"
+vscode_home: "/home/{{ vscode_user }}"
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+# AUR package: visual-studio-code-bin (Microsoft binary with marketplace)
+# Alternative: 'code' from pacman (OSS build, no marketplace)
+vscode_aur_packages:
+  - visual-studio-code-bin
+
+# =============================================================================
+# Wayland / Electron Flags
+# =============================================================================
+# Run VSCode natively on Wayland (Hyprland/Omarchy)
+vscode_wayland_enabled: true
+vscode_electron_flags:
+  - "--enable-features=UseOzonePlatform"
+  - "--ozone-platform=wayland"
+  - "--enable-wayland-ime"
+
+# =============================================================================
+# Desktop File
+# =============================================================================
+# Custom .desktop file for Walker/Omarchy menu with Wayland flags
+vscode_desktop_file_install: true
+
+# =============================================================================
+# Extensions
+# =============================================================================
+# Common developer extensions - override in config.yml to customize
+vscode_extensions:
+  # Python development
+  - ms-python.python
+  - ms-python.vscode-pylance
+  - ms-python.debugpy
+  - ms-python.black-formatter
+  - charliermarsh.ruff
+
+  # Rust development
+  - rust-lang.rust-analyzer
+  - vadimcn.vscode-lldb
+  - serayuzgur.crates
+  - fill-labs.dependi
+
+  # Git
+  - eamodio.gitlens
+  - mhutchie.git-graph
+
+  # Docker & containers
+  - ms-azuretools.vscode-docker
+
+  # Remote development
+  - ms-vscode-remote.remote-ssh
+  - ms-vscode-remote.remote-containers
+
+  # Vim keybindings
+  - vscodevim.vim
+
+  # Editor productivity
+  - esbenp.prettier-vscode
+  - editorconfig.editorconfig
+  - usernamehw.errorlens
+  - streetsidesoftware.code-spell-checker
+  - christian-kohler.path-intellisense
+  - gruntfuggly.todo-tree
+
+  # File types & languages
+  - redhat.vscode-yaml
+  - tamasfe.even-better-toml
+  - ms-vscode.makefile-tools
+
+  # Theme
+  - catppuccin.catppuccin-vsc
+  - catppuccin.catppuccin-vsc-icons
+
+# =============================================================================
+# User Settings (settings.json)
+# =============================================================================
+# Set to true to manage settings.json via Ansible
+vscode_settings_managed: true
+
+vscode_settings:
+  # Editor
+  "editor.fontFamily": "'JetBrains Mono', 'JetBrainsMono Nerd Font', 'Fira Code', monospace"
+  "editor.fontSize": 14
+  "editor.fontLigatures": true
+  "editor.tabSize": 4
+  "editor.insertSpaces": true
+  "editor.formatOnSave": true
+  "editor.minimap.enabled": false
+  "editor.bracketPairColorization.enabled": true
+  "editor.guides.bracketPairs": "active"
+  "editor.smoothScrolling": true
+  "editor.cursorSmoothCaretAnimation": "on"
+  "editor.wordWrap": "off"
+  "editor.renderWhitespace": "boundary"
+  "editor.suggestSelection": "first"
+  "editor.inlineSuggest.enabled": true
+  "editor.stickyScroll.enabled": true
+  "editor.lineNumbers": "relative"
+  "editor.cursorStyle": "block"
+  "editor.cursorBlinking": "solid"
+
+  # Workbench
+  "workbench.colorTheme": "Catppuccin Mocha"
+  "workbench.iconTheme": "catppuccin-mocha"
+  "workbench.startupEditor": "none"
+  "workbench.tree.indent": 16
+  "workbench.editor.enablePreview": false
+  "workbench.activityBar.location": "top"
+  "workbench.list.smoothScrolling": true
+  "workbench.sideBar.location": "left"
+
+  # Terminal
+  "terminal.integrated.fontFamily": "'JetBrainsMono Nerd Font'"
+  "terminal.integrated.fontSize": 13
+  "terminal.integrated.defaultProfile.linux": "zsh"
+  "terminal.integrated.cursorBlinking": true
+  "terminal.integrated.scrollback": 10000
+  "terminal.integrated.gpuAcceleration": "on"
+
+  # Files
+  "files.trimTrailingWhitespace": true
+  "files.insertFinalNewline": true
+  "files.trimFinalNewlines": true
+  "files.autoSave": "afterDelay"
+  "files.autoSaveDelay": 1000
+  "files.exclude":
+    "**/__pycache__": true
+    "**/.pytest_cache": true
+    "**/.mypy_cache": true
+    "**/.ruff_cache": true
+    "**/*.pyc": true
+    "**/.git": true
+    "**/target": true
+
+  # Python
+  "python.defaultInterpreterPath": "/usr/bin/python3"
+  "[python]":
+    "editor.defaultFormatter": "charliermarsh.ruff"
+    "editor.formatOnSave": true
+    "editor.codeActionsOnSave":
+      "source.organizeImports.ruff": "explicit"
+
+  # Rust
+  "rust-analyzer.check.command": "clippy"
+  "rust-analyzer.inlayHints.typeHints.enable": true
+  "rust-analyzer.inlayHints.parameterHints.enable": true
+  "rust-analyzer.inlayHints.chainingHints.enable": true
+  "rust-analyzer.completion.autoimport.enable": true
+  "rust-analyzer.procMacro.enable": true
+  "[rust]":
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+    "editor.formatOnSave": true
+
+  # Vim (vscodevim)
+  "vim.enable": true
+  "vim.leader": "<space>"
+  "vim.hlsearch": true
+  "vim.useSystemClipboard": true
+  "vim.easymotion": true
+  "vim.sneak": true
+  "vim.incsearch": true
+  "vim.smartRelativeLine": true
+  "vim.handleKeys":
+    "<C-a>": false
+    "<C-f>": false
+    "<C-c>": false
+    "<C-v>": false
+    "<C-x>": false
+    "<C-z>": false
+    "<C-p>": false
+    "<C-w>": false
+  "vim.normalModeKeyBindingsNonRecursive":
+    - before: ["<leader>", "e"]
+      commands: ["workbench.action.toggleSidebarVisibility"]
+    - before: ["<leader>", "f"]
+      commands: ["workbench.action.quickOpen"]
+    - before: ["<leader>", "g"]
+      commands: ["workbench.action.findInFiles"]
+    - before: ["<leader>", "w"]
+      commands: [":w"]
+    - before: ["<leader>", "q"]
+      commands: [":q"]
+    - before: ["<leader>", "t"]
+      commands: ["workbench.action.terminal.toggleTerminal"]
+    - before: ["<leader>", "r"]
+      commands: ["editor.action.rename"]
+    - before: ["<leader>", "d"]
+      commands: ["editor.action.revealDefinition"]
+    - before: ["<leader>", "h"]
+      commands: ["editor.action.showHover"]
+    - before: ["g", "d"]
+      commands: ["editor.action.revealDefinition"]
+    - before: ["g", "r"]
+      commands: ["editor.action.goToReferences"]
+    - before: ["g", "i"]
+      commands: ["editor.action.goToImplementation"]
+    - before: ["[", "d"]
+      commands: ["editor.action.marker.prevInFiles"]
+    - before: ["]", "d"]
+      commands: ["editor.action.marker.nextInFiles"]
+  "vim.visualModeKeyBindingsNonRecursive":
+    - before: [">"]
+      commands: ["editor.action.indentLines"]
+    - before: ["<"]
+      commands: ["editor.action.outdentLines"]
+
+  # Window
+  "window.titleBarStyle": "custom"
+  "window.dialogStyle": "custom"
+
+  # Telemetry
+  "telemetry.telemetryLevel": "off"
+  "redhat.telemetry.enabled": false
+
+  # Git
+  "git.autofetch": true
+  "git.confirmSync": false
+  "git.enableSmartCommit": true
+
+  # Error Lens
+  "errorLens.gutterIconsEnabled": true
+  "errorLens.messageMaxChars": 80
+
+# =============================================================================
+# Keybindings (keybindings.json)
+# =============================================================================
+# Set to true to manage keybindings.json via Ansible
+vscode_keybindings_managed: true
+
+vscode_keybindings:
+  # Terminal toggle (works in all modes)
+  - key: "ctrl+shift+t"
+    command: "workbench.action.terminal.toggleTerminal"
+  # Quick panel navigation
+  - key: "ctrl+j"
+    command: "workbench.action.quickOpenSelectNext"
+    when: "inQuickOpen"
+  - key: "ctrl+k"
+    command: "workbench.action.quickOpenSelectPrevious"
+    when: "inQuickOpen"
+  # Navigate between editor groups
+  - key: "ctrl+h"
+    command: "workbench.action.focusLeftGroup"
+  - key: "ctrl+l"
+    command: "workbench.action.focusRightGroup"
+  # Escape to clear search highlight in vim normal mode
+  - key: "escape"
+    command: "vim.remap"
+    when: "vim.mode == 'Normal' && editorTextFocus"
+    args:
+      after: [":", "n", "o", "h", "enter"]
