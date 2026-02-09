@@ -94,6 +94,17 @@
 # =============================================================================
 # Desktop File (for Walker / Omarchy menu)
 # =============================================================================
+- name: Create local applications directory
+  ansible.builtin.file:
+    path: "{{ vscode_home }}/.local/share/applications"
+    state: directory
+    owner: "{{ vscode_user }}"
+    group: "{{ vscode_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ vscode_user }}"
+  tags: ["vscode", "desktop"]
+
 - name: Deploy VSCode desktop file with Wayland flags
   ansible.builtin.template:
     src: code-wayland.desktop.j2
@@ -104,17 +115,6 @@
   become: true
   become_user: "{{ vscode_user }}"
   when: vscode_desktop_file_install
-  tags: ["vscode", "desktop"]
-
-- name: Create local applications directory
-  ansible.builtin.file:
-    path: "{{ vscode_home }}/.local/share/applications"
-    state: directory
-    owner: "{{ vscode_user }}"
-    group: "{{ vscode_user }}"
-    mode: "0755"
-  become: true
-  become_user: "{{ vscode_user }}"
   tags: ["vscode", "desktop"]
 
 # Hide the original desktop file so Walker only shows our Wayland version
