@@ -47,12 +47,7 @@ vscode_extensions:
   # Rust development
   - rust-lang.rust-analyzer
   - vadimcn.vscode-lldb
-  - serayuzgur.crates
   - fill-labs.dependi
-
-  # Git
-  - eamodio.gitlens
-  - mhutchie.git-graph
 
   # Docker & containers
   - ms-azuretools.vscode-docker
