@@ -32,5 +32,3 @@ monitor_settings_aur_package: "omarchy-monitor-settings"
 monitor_settings_git_repo: "https://github.com/ryanyogan/omarchy-monitor-settings.git"
 monitor_settings_git_dest: "{{ monitor_settings_home }}/.local/src/omarchy-monitor-settings"
 monitor_settings_install_dest: "/usr/local/bin"
-DEFAULTS
-
