@@ -1,0 +1,195 @@
+---
+# Omarchy Monitor Settings Role - Self-contained tasks
+# Installs omarchy-monitor-settings for Hyprland monitor management
+
+# =============================================================================
+# Prerequisites Check
+# =============================================================================
+- name: Check if Go is installed (for go_install method)
+  ansible.builtin.command: which go
+  register: _go_check
+  changed_when: false
+  failed_when: false
+  when: monitor_settings_install_method == "go_install"
+  tags: ["omarchy-monitor-settings", "verify"]
+
+- name: Fail if Go is not installed and go_install method is chosen
+  ansible.builtin.fail:
+    msg: "Go is not installed. Please run the 'go' role first, or change monitor_settings_install_method to 'aur' or 'source'."
+  when:
+    - monitor_settings_install_method == "go_install"
+    - _go_check.rc != 0
+  tags: ["omarchy-monitor-settings", "verify"]
+
+# =============================================================================
+# Method 1: Install via go install (recommended)
+# =============================================================================
+- name: Install omarchy-monitor-settings via go install
+  ansible.builtin.command:
+    cmd: "go install {{ monitor_settings_go_package }}@{{ monitor_settings_go_version }}"
+  environment:
+    GOPATH: "{{ monitor_settings_gopath }}"
+    GOBIN: "{{ monitor_settings_gobin }}"
+    PATH: "{{ monitor_settings_gobin }}:/usr/local/bin:/usr/bin:/bin"
+  become: true
+  become_user: "{{ monitor_settings_user }}"
+  register: _go_install
+  changed_when: "'downloading' in _go_install.stderr or 'go: downloading' in _go_install.stdout"
+  failed_when: _go_install.rc != 0
+  when: monitor_settings_install_method == "go_install"
+  tags: ["omarchy-monitor-settings", "install", "go"]
+
+# =============================================================================
+# Method 2: Install from AUR
+# =============================================================================
+- name: Check if yay is installed (for AUR method)
+  ansible.builtin.command: which yay
+  register: _yay_check
+  changed_when: false
+  failed_when: false
+  when: monitor_settings_install_method == "aur"
+  tags: ["omarchy-monitor-settings", "aur"]
+
+- name: Temporarily allow passwordless pacman for AUR
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/monitor-settings-aur-temp
+    line: "{{ monitor_settings_user }} ALL=(ALL) NOPASSWD: /usr/bin/pacman *"
+    create: true
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  become: true
+  when:
+    - monitor_settings_install_method == "aur"
+    - _yay_check.rc == 0
+  tags: ["omarchy-monitor-settings", "aur"]
+
+- name: Install omarchy-monitor-settings from AUR
+  kewlfft.aur.aur:
+    name: "{{ monitor_settings_aur_package }}"
+    use: yay
+    state: present
+  become: true
+  become_user: "{{ monitor_settings_user }}"
+  when:
+    - monitor_settings_install_method == "aur"
+    - _yay_check.rc == 0
+  tags: ["omarchy-monitor-settings", "aur"]
+
+- name: Remove temporary sudoers rule for AUR
+  ansible.builtin.file:
+    path: /etc/sudoers.d/monitor-settings-aur-temp
+    state: absent
+  become: true
+  when:
+    - monitor_settings_install_method == "aur"
+    - _yay_check.rc == 0
+  tags: ["omarchy-monitor-settings", "aur"]
+
+# =============================================================================
+# Method 3: Build from source
+# =============================================================================
+- name: Install build dependencies for source build
+  community.general.pacman:
+    name:
+      - git
+      - go
+      - make
+    state: present
+  become: true
+  when: monitor_settings_install_method == "source"
+  tags: ["omarchy-monitor-settings", "source"]
+
+- name: Create source directory
+  ansible.builtin.file:
+    path: "{{ monitor_settings_git_dest | dirname }}"
+    state: directory
+    owner: "{{ monitor_settings_user }}"
+    group: "{{ monitor_settings_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ monitor_settings_user }}"
+  when: monitor_settings_install_method == "source"
+  tags: ["omarchy-monitor-settings", "source"]
+
+- name: Clone omarchy-monitor-settings repository
+  ansible.builtin.git:
+    repo: "{{ monitor_settings_git_repo }}"
+    dest: "{{ monitor_settings_git_dest }}"
+    version: main
+    force: false
+    update: true
+  become: true
+  become_user: "{{ monitor_settings_user }}"
+  when: monitor_settings_install_method == "source"
+  tags: ["omarchy-monitor-settings", "source"]
+
+- name: Build omarchy-monitor-settings from source
+  ansible.builtin.command:
+    cmd: make build
+    chdir: "{{ monitor_settings_git_dest }}"
+  become: true
+  become_user: "{{ monitor_settings_user }}"
+  register: _make_build
+  changed_when: "'go build' in _make_build.stdout"
+  when: monitor_settings_install_method == "source"
+  tags: ["omarchy-monitor-settings", "source"]
+
+- name: Install binary to /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ monitor_settings_git_dest }}/omarchy-monitor-settings"
+    dest: "{{ monitor_settings_install_dest }}/omarchy-monitor-settings"
+    mode: "0755"
+    owner: root
+    group: root
+    remote_src: true
+  become: true
+  when: monitor_settings_install_method == "source"
+  tags: ["omarchy-monitor-settings", "source"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Check if omarchy-monitor-settings is in PATH
+  ansible.builtin.command: which omarchy-monitor-settings
+  register: _binary_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "{{ monitor_settings_gobin }}:/usr/local/bin:/usr/bin:/bin"
+  become: true
+  become_user: "{{ monitor_settings_user }}"
+  tags: ["omarchy-monitor-settings", "verify"]
+
+- name: Get omarchy-monitor-settings version
+  ansible.builtin.command: omarchy-monitor-settings --version
+  register: _version_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "{{ monitor_settings_gobin }}:/usr/local/bin:/usr/bin:/bin"
+  become: true
+  become_user: "{{ monitor_settings_user }}"
+  when: _binary_check.rc == 0
+  tags: ["omarchy-monitor-settings", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display omarchy-monitor-settings setup summary
+  ansible.builtin.debug:
+    msg: |
+      Omarchy Monitor Settings Configuration:
+      • Installation method: {{ monitor_settings_install_method }}
+      • Binary location: {{ _binary_check.stdout | default('not found') }}
+      • Version: {{ _version_check.stdout | default('unknown') }}
+
+      Usage:
+        omarchy-monitor-settings
+
+      This tool provides an interactive interface for:
+      • Multi-monitor detection and configuration
+      • Intelligent scaling recommendations
+      • High DPI display support (2.8K, 4K, 5K, 6K)
+      • Framework 13 optimized scaling
+      • Real-time Hyprland configuration updates
+  tags: ["omarchy-monitor-settings"]

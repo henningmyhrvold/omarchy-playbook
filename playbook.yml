@@ -26,6 +26,7 @@
     # Development tools
     - { role: tmux, tags: ["tmux", "terminal"] }
     - { role: vscode, tags: ["vscode", "dev", "editor"] }
+    - { role: go, tags: ["go", "dev"] }
 
     # System services
     - { role: dns, tags: ["dns", "network"] }
@@ -49,3 +50,4 @@
     - { role: folders, tags: ["folders"] }
     - { role: dotfiles, tags: ["dotfiles"] }
     - { role: links, tags: ["links"] }
+    - { role: omarchy_monitor_settings, tags: ["omarchy-monitor", "dev"] }

@@ -1,0 +1,36 @@
+---
+# Omarchy Monitor Settings Role - Self-contained
+# Installs omarchy-monitor-settings tool for Hyprland monitor configuration
+
+monitor_settings_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+monitor_settings_home: "/home/{{ monitor_settings_user }}"
+
+# =============================================================================
+# Installation Method
+# =============================================================================
+# Options: "go_install", "aur", "source"
+monitor_settings_install_method: "go_install"
+
+# =============================================================================
+# Go Install Configuration (default method)
+# =============================================================================
+monitor_settings_go_package: "github.com/ryanyogan/omarchy-monitor-settings"
+monitor_settings_go_version: "latest"  # or "v1.1.2" for specific version
+
+# Go paths (should match go role if used)
+monitor_settings_gopath: "{{ monitor_settings_home }}/go"
+monitor_settings_gobin: "{{ monitor_settings_gopath }}/bin"
+
+# =============================================================================
+# AUR Configuration (alternative method)
+# =============================================================================
+monitor_settings_aur_package: "omarchy-monitor-settings"
+
+# =============================================================================
+# Source Build Configuration (alternative method)
+# =============================================================================
+monitor_settings_git_repo: "https://github.com/ryanyogan/omarchy-monitor-settings.git"
+monitor_settings_git_dest: "{{ monitor_settings_home }}/.local/src/omarchy-monitor-settings"
+monitor_settings_install_dest: "/usr/local/bin"
+DEFAULTS
+

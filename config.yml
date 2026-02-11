@@ -85,6 +85,7 @@ aur_installed_packages:
   - zen-browser-bin
   - google-chrome
   - lazydocker
+  - youtube-music-desktop
   - omnissa-horizon-client
  # - cool-retro-term
  # - tio

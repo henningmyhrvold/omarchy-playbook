@@ -1,0 +1,87 @@
+---
+# Go Role - Self-contained tasks
+# Installs Go programming language and sets up environment
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install Go from pacman
+  community.general.pacman:
+    name: "{{ go_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["go", "packages"]
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Create Go workspace directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ go_user }}"
+    group: "{{ go_user }}"
+    mode: "0755"
+  loop:
+    - "{{ go_path }}"
+    - "{{ go_path }}/bin"
+    - "{{ go_path }}/pkg"
+    - "{{ go_path }}/src"
+  become: true
+  become_user: "{{ go_user }}"
+  tags: ["go", "folders"]
+
+# =============================================================================
+# Environment Configuration
+# =============================================================================
+- name: Configure Go environment in shell configs
+  ansible.builtin.blockinfile:
+    path: "{{ item }}"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Go environment"
+    block: |
+      # Go environment
+      export GOPATH="{{ go_path }}"
+      export GOBIN="{{ go_bin }}"
+      export PATH="{{ go_bin }}:$PATH"
+    create: true
+    mode: "0644"
+  loop: "{{ go_shell_configs }}"
+  become: true
+  become_user: "{{ go_user }}"
+  tags: ["go", "config"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Check Go version
+  ansible.builtin.command: go version
+  register: _go_version
+  changed_when: false
+  failed_when: false
+  environment:
+    GOPATH: "{{ go_path }}"
+    GOBIN: "{{ go_bin }}"
+  become: true
+  become_user: "{{ go_user }}"
+  tags: ["go", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display Go setup summary
+  ansible.builtin.debug:
+    msg: |
+      Go Configuration:
+      • Go version: {{ _go_version.stdout | default('unknown') }}
+      • GOPATH: {{ go_path }}
+      • GOBIN: {{ go_bin }}
+
+      Go is now installed and configured.
+      Other roles can now install Go packages via 'go install'.
+
+      To use Go immediately:
+        source ~/.zshrc  # or source ~/.bashrc
+
+      Manual installation example:
+        go install github.com/user/package@latest
+  tags: ["go"]

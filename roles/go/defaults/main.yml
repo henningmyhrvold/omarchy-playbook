@@ -1,0 +1,29 @@
+---
+# Go Role - Self-contained
+# Installs Go and configures environment
+
+go_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+go_home: "/home/{{ go_user }}"
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+go_pacman_packages:
+  - go
+  - git  # Required for go install/get
+
+# =============================================================================
+# Go Environment Variables
+# =============================================================================
+# GOPATH - where Go packages are installed
+go_path: "{{ go_home }}/go"
+
+# GOBIN - where Go binaries are installed (go install)
+go_bin: "{{ go_path }}/bin"
+
+# =============================================================================
+# Shell Configuration Files
+# =============================================================================
+go_shell_configs:
+  - "{{ go_home }}/.zshrc"
+  - "{{ go_home }}/.bashrc"
