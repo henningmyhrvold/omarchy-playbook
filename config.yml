@@ -87,7 +87,7 @@ aur_installed_packages:
   - lazydocker
   - youtube-music-desktop
   - omnissa-horizon-client
- ## Youtube music takes hours to install because og qt
+ ## Youtube music takes hours to install because og qt install via chrome instead
  # - qt5-webengine
  # - qtws-base
  # - youtube-music-desktop
