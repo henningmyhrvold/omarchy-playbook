@@ -85,7 +85,6 @@ aur_installed_packages:
   - zen-browser-bin
   - google-chrome
   - lazydocker
-  - youtube-music-desktop
   - omnissa-horizon-client
  ## Youtube music takes hours to install because og qt install via chrome instead
  # - qt5-webengine
