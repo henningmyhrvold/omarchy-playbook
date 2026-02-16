@@ -1,5 +1,5 @@
 ---
 - name: restart claude code
   ansible.builtin.debug:
-    msg: "MCP servers registered. Restart Claude Code if running."
+    msg: "MCP configuration updated. Restart Claude Code if running."
   listen: "restart claude code"

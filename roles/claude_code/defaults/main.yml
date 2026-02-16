@@ -1,6 +1,6 @@
 ---
-# Claude Code Role - CLI-based MCP registration
-# Claude Code v2.1+ uses project-specific MCP configs via CLI
+# Claude Code Role - .mcp.json based configuration
+# Uses .mcp.json files for recursive MCP server availability
 
 claude_code_user: "{{ target_user | default(ansible_facts['user_id']) }}"
 claude_code_home: "/home/{{ claude_code_user }}"
@@ -8,48 +8,21 @@ claude_code_home: "/home/{{ claude_code_user }}"
 # =============================================================================
 # MCP Server Configuration
 # =============================================================================
-# MCP servers to register via CLI
-# Each server will be registered using: claude mcp add <name> -- <command> [args...]
-
-# Filesystem MCP server
 mcp_filesystem_enabled: true
-mcp_filesystem_name: "filesystem"
-mcp_filesystem_command: "docker"
-mcp_filesystem_args:
-  - "exec"
-  - "-i"
-  - "mcp-filesystem"
-  - "npx"
-  - "@modelcontextprotocol/server-filesystem"
-  - "/home/{{ claude_code_user }}/src"
-  - "/home/{{ claude_code_user }}/projects"
-  - "/home/{{ claude_code_user }}/Documents"
-
-# Ref (Context7) MCP server
 mcp_ref_enabled: true
-mcp_ref_name: "ref"
-mcp_ref_command: "docker"
-mcp_ref_args:
-  - "exec"
-  - "-i"
-  - "mcp-ref"
-  - "npx"
-  - "@upstash/context7-mcp"
-
-# Docker MCP server
-mcp_docker_enabled: false  # Set to true in config.yml to enable
-mcp_docker_name: "docker"
-mcp_docker_command: "docker"
-mcp_docker_args:
-  - "exec"
-  - "-i"
-  - "mcp-docker"
-  - "mcp-server-docker"
+mcp_docker_enabled: true  # Now enabled by default
 
 # =============================================================================
-# Project Directories
-# MCP servers will be registered for these project directories
+# .mcp.json File Locations
 # =============================================================================
-claude_code_project_dirs:
+# Create .mcp.json in these directories
+# Subdirectories will inherit the configuration
+claude_code_mcp_json_locations:
+  - "{{ claude_code_home }}"           # Global fallback
+  - "{{ claude_code_home }}/src"       # All src projects
+  - "{{ claude_code_home }}/projects"  # All projects
+
+# Also register via CLI for backward compatibility
+claude_code_cli_registration_dirs:
   - "{{ claude_code_home }}/src"
   - "{{ claude_code_home }}/projects"

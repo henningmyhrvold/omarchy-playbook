@@ -1,6 +1,5 @@
 ---
-# Claude Code Role - CLI-based MCP registration
-# Registers MCP servers using 'claude mcp add' for project directories
+# Claude Code Role - .mcp.json based configuration
 
 # =============================================================================
 # Package Installation
@@ -15,149 +14,144 @@
 # =============================================================================
 # Directory Setup
 # =============================================================================
-- name: Create project directories
+- name: Create MCP configuration directories
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     owner: "{{ claude_code_user }}"
     group: "{{ claude_code_user }}"
     mode: "0755"
-  loop: "{{ claude_code_project_dirs }}"
+  loop: "{{ claude_code_mcp_json_locations }}"
   become: true
   become_user: "{{ claude_code_user }}"
   tags: ["claude-code", "folders"]
 
 # =============================================================================
-# Verify MCP Containers are Running
+# Check Running MCP Containers
 # =============================================================================
-- name: Check if MCP containers are running
-  ansible.builtin.shell: |
-    docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep '^mcp-' || true
-  register: _running_mcp_containers
+- name: Check for running MCP containers
+  ansible.builtin.shell: docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep '^mcp-' || true
+  register: _running_containers
   changed_when: false
   tags: ["claude-code", "mcp"]
 
-- name: Display running MCP containers
-  ansible.builtin.debug:
-    msg: "Running MCP containers: {{ _running_mcp_containers.stdout_lines }}"
+- name: Set fact for available MCP servers
+  ansible.builtin.set_fact:
+    _mcp_filesystem_available: "{{ 'mcp-filesystem' in _running_containers.stdout }}"
+    _mcp_ref_available: "{{ 'mcp-ref' in _running_containers.stdout }}"
+    _mcp_docker_available: "{{ 'mcp-docker' in _running_containers.stdout }}"
   tags: ["claude-code", "mcp"]
 
 # =============================================================================
-# Remove Existing MCP Servers (to avoid duplicates)
+# Deploy .mcp.json Files
 # =============================================================================
-- name: Remove existing MCP servers from project directories
+- name: Deploy .mcp.json configuration files
+  ansible.builtin.template:
+    src: mcp.json.j2
+    dest: "{{ item }}/.mcp.json"
+    owner: "{{ claude_code_user }}"
+    group: "{{ claude_code_user }}"
+    mode: "0644"
+  loop: "{{ claude_code_mcp_json_locations }}"
+  become: true
+  become_user: "{{ claude_code_user }}"
+  tags: ["claude-code", "config"]
+
+# =============================================================================
+# CLI Registration (Backward Compatibility)
+# =============================================================================
+- name: Remove existing MCP CLI registrations
   ansible.builtin.shell: |
     cd "{{ item }}"
     claude mcp remove filesystem 2>/dev/null || true
     claude mcp remove ref 2>/dev/null || true
     claude mcp remove docker 2>/dev/null || true
-  loop: "{{ claude_code_project_dirs }}"
+  loop: "{{ claude_code_cli_registration_dirs }}"
   become: true
   become_user: "{{ claude_code_user }}"
   changed_when: false
   failed_when: false
-  tags: ["claude-code", "mcp"]
+  tags: ["claude-code", "cli"]
 
-# =============================================================================
-# Register Filesystem MCP Server
-# =============================================================================
-- name: Register filesystem MCP server for project directories
+- name: Register filesystem MCP via CLI
   ansible.builtin.shell: |
     cd "{{ item }}"
-    claude mcp add {{ mcp_filesystem_name }} -- {{ mcp_filesystem_command }} {{ mcp_filesystem_args | join(' ') }}
-  loop: "{{ claude_code_project_dirs }}"
+    claude mcp add filesystem -- docker exec -i mcp-filesystem npx @modelcontextprotocol/server-filesystem {{ claude_code_home }}/src {{ claude_code_home }}/projects {{ claude_code_home }}/Documents
+  loop: "{{ claude_code_cli_registration_dirs }}"
   become: true
   become_user: "{{ claude_code_user }}"
   when:
     - mcp_filesystem_enabled | bool
-    - "'mcp-filesystem' in _running_mcp_containers.stdout"
-  register: _mcp_filesystem_add
-  changed_when: "'Added' in _mcp_filesystem_add.stdout"
-  tags: ["claude-code", "mcp"]
+    - _mcp_filesystem_available | bool
+  register: _cli_fs
+  changed_when: "'Added' in _cli_fs.stdout"
+  failed_when: false
+  tags: ["claude-code", "cli"]
 
-# =============================================================================
-# Register Ref MCP Server
-# =============================================================================
-- name: Register ref MCP server for project directories
+- name: Register ref MCP via CLI
   ansible.builtin.shell: |
     cd "{{ item }}"
-    claude mcp add {{ mcp_ref_name }} -- {{ mcp_ref_command }} {{ mcp_ref_args | join(' ') }}
-  loop: "{{ claude_code_project_dirs }}"
+    claude mcp add ref -- docker exec -i mcp-ref npx @upstash/context7-mcp
+  loop: "{{ claude_code_cli_registration_dirs }}"
   become: true
   become_user: "{{ claude_code_user }}"
   when:
     - mcp_ref_enabled | bool
-    - "'mcp-ref' in _running_mcp_containers.stdout"
-  register: _mcp_ref_add
-  changed_when: "'Added' in _mcp_ref_add.stdout"
-  tags: ["claude-code", "mcp"]
+    - _mcp_ref_available | bool
+  register: _cli_ref
+  changed_when: "'Added' in _cli_ref.stdout"
+  failed_when: false
+  tags: ["claude-code", "cli"]
 
-# =============================================================================
-# Register Docker MCP Server
-# =============================================================================
-- name: Register docker MCP server for project directories
+- name: Register docker MCP via CLI
   ansible.builtin.shell: |
     cd "{{ item }}"
-    claude mcp add {{ mcp_docker_name }} -- {{ mcp_docker_command }} {{ mcp_docker_args | join(' ') }}
-  loop: "{{ claude_code_project_dirs }}"
+    claude mcp add docker -- docker exec -i mcp-docker mcp-server-docker
+  loop: "{{ claude_code_cli_registration_dirs }}"
   become: true
   become_user: "{{ claude_code_user }}"
   when:
     - mcp_docker_enabled | bool
-    - "'mcp-docker' in _running_mcp_containers.stdout"
-  register: _mcp_docker_add
-  changed_when: "'Added' in _mcp_docker_add.stdout"
-  tags: ["claude-code", "mcp"]
-
-# =============================================================================
-# Verify Registration
-# =============================================================================
-- name: Verify MCP servers are registered
-  ansible.builtin.shell: |
-    cd "{{ item }}"
-    claude mcp list
-  loop: "{{ claude_code_project_dirs }}"
-  become: true
-  become_user: "{{ claude_code_user }}"
-  register: _mcp_list
-  changed_when: false
-  tags: ["claude-code", "verify"]
+    - _mcp_docker_available | bool
+  register: _cli_docker
+  changed_when: "'Added' in _cli_docker.stdout"
+  failed_when: false
+  tags: ["claude-code", "cli"]
 
 # =============================================================================
 # Summary
 # =============================================================================
-- name: Display Claude Code MCP setup summary
+- name: Display setup summary
   ansible.builtin.debug:
     msg: |
-      Claude Code MCP Configuration Complete:
+      Claude Code MCP Configuration:
 
-      Project Directories:
-      {% for dir in claude_code_project_dirs %}
-      • {{ dir }}
+      .mcp.json files created in:
+      {% for loc in claude_code_mcp_json_locations %}
+      • {{ loc }}/.mcp.json
       {% endfor %}
 
-      Registered MCP Servers:
-      {% if mcp_filesystem_enabled %}
-      • filesystem - File operations ({{ mcp_filesystem_args[5:] | join(', ') }})
+      Available MCP servers:
+      {% if _mcp_filesystem_available and mcp_filesystem_enabled %}
+      • filesystem - File operations
       {% endif %}
-      {% if mcp_ref_enabled %}
+      {% if _mcp_ref_available and mcp_ref_enabled %}
       • ref - Documentation search (Context7)
       {% endif %}
-      {% if mcp_docker_enabled %}
+      {% if _mcp_docker_available and mcp_docker_enabled %}
       • docker - Docker container management
       {% endif %}
 
-      Usage:
-      1. Navigate to a project directory:
-         cd ~/src/your-project
+      How .mcp.json works:
+      • Any project under ~/src will find ~/src/.mcp.json
+      • Any project under ~/projects will find ~/projects/.mcp.json
+      • All projects will fall back to ~/.mcp.json
 
-      2. Start Claude Code:
-         claude
+      First-time usage:
+      1. cd ~/src/your-project
+      2. claude
+      3. Approve .mcp.json when prompted
+      4. /mcp to verify
 
-      3. Check MCP servers:
-         /mcp
-
-      Note: MCP servers are registered per-project in Claude Code.
-      To add MCP to a new project directory, run from that directory:
-        claude mcp add <name> -- <command> [args...]
+      The approval is remembered per-project after first approval.
   tags: ["claude-code"]
