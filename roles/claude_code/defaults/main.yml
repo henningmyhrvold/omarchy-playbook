@@ -1,14 +1,55 @@
 ---
+# Claude Code Role - CLI-based MCP registration
+# Claude Code v2.1+ uses project-specific MCP configs via CLI
+
 claude_code_user: "{{ target_user | default(ansible_facts['user_id']) }}"
 claude_code_home: "/home/{{ claude_code_user }}"
 
 # =============================================================================
-# Directory Configuration
+# MCP Server Configuration
 # =============================================================================
-claude_code_config_dir: "{{ claude_code_home }}/.claude"
+# MCP servers to register via CLI
+# Each server will be registered using: claude mcp add <name> -- <command> [args...]
+
+# Filesystem MCP server
+mcp_filesystem_enabled: true
+mcp_filesystem_name: "filesystem"
+mcp_filesystem_command: "docker"
+mcp_filesystem_args:
+  - "exec"
+  - "-i"
+  - "mcp-filesystem"
+  - "npx"
+  - "@modelcontextprotocol/server-filesystem"
+  - "/home/{{ claude_code_user }}/src"
+  - "/home/{{ claude_code_user }}/projects"
+  - "/home/{{ claude_code_user }}/Documents"
+
+# Ref (Context7) MCP server
+mcp_ref_enabled: true
+mcp_ref_name: "ref"
+mcp_ref_command: "docker"
+mcp_ref_args:
+  - "exec"
+  - "-i"
+  - "mcp-ref"
+  - "npx"
+  - "@upstash/context7-mcp"
+
+# Docker MCP server
+mcp_docker_enabled: false  # Set to true in config.yml to enable
+mcp_docker_name: "docker"
+mcp_docker_command: "docker"
+mcp_docker_args:
+  - "exec"
+  - "-i"
+  - "mcp-docker"
+  - "mcp-server-docker"
 
 # =============================================================================
-# MCP Configuration
-# These will be populated by MCP server roles registering themselves
+# Project Directories
+# MCP servers will be registered for these project directories
 # =============================================================================
-mcp_servers_registered: []
+claude_code_project_dirs:
+  - "{{ claude_code_home }}/src"
+  - "{{ claude_code_home }}/projects"
