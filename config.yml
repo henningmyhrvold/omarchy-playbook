@@ -119,18 +119,12 @@ dotfiles_links:
   - { src: "zsh/.zshrc", dest: ".zshrc" }
   - { src: "zsh/.zsh_profile", dest: ".zsh_profile" }
   - { src: "zsh/.p10k.zsh", dest: ".p10k.zsh" }
-  - { src: "tmux/tmux.conf", dest: ".config/tmux/tmux.conf" }
-  - { src: "tmux-sessionizer/tmux-sessionizer.conf", dest: ".config/tmux-sessionizer/tmux-sessionizer.conf" }
-  - { src: "tmux-sessionizer/tmux-sessionizer.sh", dest: ".local/bin/tmux-sessionizer.sh" }
-  - { src: "tmux-sessionizer/tmux-status-color.sh", dest: ".local/bin/tmux-status-color.sh" }
   - { src: "mcp/hub.json", dest: ".config/mcp/hub.json" }
   - { src: "mcp/mcphub.json", dest: ".config/mcp/mcphub.json" }
   - { src: "mcp/docker-compose.mcp.yml", dest: ".config/mcp/docker-compose.mcp.yml" }
 
 # Files that should be marked as executable
 dotfiles_files_binaries:
-  - "tmux-sessionizer/tmux-sessionizer.sh"
-  - "tmux-sessionizer/tmux-status-color.sh"
 
 # =============================================================================
 # DNS Configuration
@@ -151,9 +145,6 @@ mcp_filesystem_allowed_dirs:
   - "/home/henning/src"
   - "/home/henning/projects"
   - "/home/henning/Documents"
-
-mcp_semgrep_scan_dirs:
-  - "/home/henning/src"
 
 mcp_network_mode: "host"
 mcp_enable_lingering: true

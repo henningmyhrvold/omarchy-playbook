@@ -6,7 +6,7 @@
 # Usage examples:
 #   ./bootstrap.sh                              # Run everything
 #   ansible-playbook playbook.yml --tags zsh   # Run only zsh role
-#   ansible-playbook playbook.yml --tags "zsh,tmux"  # Run multiple
+#   ansible-playbook playbook.yml --tags "zsh,go"  # Run multiple
 #   ansible-playbook playbook.yml --skip-tags mcp  # Skip MCP roles
 
 - hosts: workstation
@@ -24,7 +24,6 @@
     - { role: zsh, tags: ["zsh", "shell"] }
 
     # Development tools
-    - { role: tmux, tags: ["tmux", "terminal"] }
     - { role: vscode, tags: ["vscode", "dev", "editor"] }
     - { role: go, tags: ["go", "dev"] }
 
@@ -50,4 +49,4 @@
     - { role: folders, tags: ["folders"] }
     - { role: dotfiles, tags: ["dotfiles"] }
     - { role: links, tags: ["links"] }
-    - { role: omarchy_monitor_settings, tags: ["omarchy-monitor", "dev"] }
+    - { role: omarchy_monitor_settings, tags: ["omarchy-monitor"] }
