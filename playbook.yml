@@ -39,6 +39,8 @@
     - { role: claude_code, tags: ["claude-code", "ai"] }
     - { role: openai_codex, tags: ["openai-code", "ai"] }
     - { role: gemini_cli, tags: ["gemini-cli", "ai"] }
+    - { role: pi_coding_agent, tags: ["pi-coding-agent", "ai"] }
+    - { role: skills, tags: ["skills", "ai"] }
 
     # MCP Servers (Docker-based)
     - { role: mcp_filesystem, tags: ["mcp", "mcp-filesystem"], when: mcp_filesystem_enabled | default(true) }

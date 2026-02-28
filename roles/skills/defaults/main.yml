@@ -1,0 +1,42 @@
+---
+# Skills Role - Self-contained
+# Distributes skill directories (SKILL.md format) to AI agents
+#
+# Naming convention: gerund form (verb-ing)
+#   brainstorming/ code-reviewing/ debugging-embedded/
+#
+# Skill structure in dotfiles repo:
+#   skills/<skill-name>/SKILL.md    (required: YAML frontmatter + instructions)
+#   skills/<skill-name>/scripts/    (optional: executable scripts)
+#   skills/<skill-name>/references/ (optional: reference docs)
+
+skills_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+skills_home: "/home/{{ skills_user }}"
+
+# =============================================================================
+# Source Configuration
+# =============================================================================
+skills_dotfiles_repo_dest: "{{ skills_home }}/src/omarchy-dotfiles"
+skills_source_dir: "{{ skills_dotfiles_repo_dest }}/skills"
+
+# =============================================================================
+# Agent Skill Directories
+# =============================================================================
+# Claude Code + OpenCode (OpenCode natively reads ~/.claude/skills/)
+skills_claude_dir: "{{ skills_home }}/.claude/skills"
+
+# Pi Coding Agent
+skills_pi_dir: "{{ skills_home }}/.pi/agent/skills"
+
+# All directories that get symlinks
+skills_agent_dirs:
+  - "{{ skills_claude_dir }}"
+  - "{{ skills_pi_dir }}"
+
+# =============================================================================
+# Pi Coding Agent: extra skill paths in settings.json
+# Pi can read skills from other agent directories via config
+# =============================================================================
+skills_pi_settings_file: "{{ skills_home }}/.pi/agent/settings.json"
+skills_pi_extra_skill_paths:
+  - "~/.claude/skills"

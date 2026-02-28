@@ -1,0 +1,129 @@
+---
+# Pi Coding Agent Role - Self-contained tasks
+# Installs pi-coding-agent via npm and oh-pi extension via pi install
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install Node.js and npm from pacman
+  community.general.pacman:
+    name: "{{ pi_agent_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["pi-coding-agent", "packages"]
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Ensure npm global directory exists
+  ansible.builtin.file:
+    path: "{{ npm_global_prefix }}"
+    state: directory
+    owner: "{{ pi_agent_user }}"
+    group: "{{ pi_agent_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  tags: ["pi-coding-agent", "folders"]
+
+- name: Ensure npm global bin directory exists
+  ansible.builtin.file:
+    path: "{{ npm_global_prefix }}/bin"
+    state: directory
+    owner: "{{ pi_agent_user }}"
+    group: "{{ pi_agent_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  tags: ["pi-coding-agent", "folders"]
+
+# =============================================================================
+# NPM Global Prefix Configuration
+# =============================================================================
+- name: Set npm global prefix for user
+  ansible.builtin.command: npm config set prefix "{{ npm_global_prefix }}"
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  changed_when: false
+  tags: ["pi-coding-agent", "config"]
+
+# =============================================================================
+# Install Pi Coding Agent
+# =============================================================================
+- name: Install pi-coding-agent globally via npm
+  community.general.npm:
+    name: "{{ pi_agent_npm_package }}"
+    global: true
+    state: present
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  environment:
+    NPM_CONFIG_PREFIX: "{{ npm_global_prefix }}"
+  tags: ["pi-coding-agent", "packages"]
+
+# =============================================================================
+# PATH Configuration
+# =============================================================================
+- name: Ensure npm global bin is in PATH (zshrc)
+  ansible.builtin.lineinfile:
+    path: "{{ pi_agent_home }}/.zshrc"
+    line: 'export PATH="{{ npm_global_prefix }}/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  tags: ["pi-coding-agent", "config"]
+
+- name: Ensure npm global bin is in PATH (bashrc)
+  ansible.builtin.lineinfile:
+    path: "{{ pi_agent_home }}/.bashrc"
+    line: 'export PATH="{{ npm_global_prefix }}/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  tags: ["pi-coding-agent", "config"]
+
+# =============================================================================
+# Install Extensions
+# =============================================================================
+- name: Install pi extensions
+  ansible.builtin.command: "{{ npm_global_prefix }}/bin/pi install {{ item }}"
+  loop: "{{ pi_agent_extensions }}"
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  environment:
+    PATH: "{{ npm_global_prefix }}/bin:/usr/local/bin:/usr/bin:/bin"
+    HOME: "{{ pi_agent_home }}"
+  register: _pi_ext_result
+  changed_when: "'installed' in (_pi_ext_result.stdout | default('')) or _pi_ext_result.rc == 0"
+  failed_when: false
+  tags: ["pi-coding-agent", "extensions"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Check if pi CLI is installed
+  ansible.builtin.command: "{{ npm_global_prefix }}/bin/pi --version"
+  register: _pi_check
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ pi_agent_user }}"
+  tags: ["pi-coding-agent", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display pi-coding-agent setup summary
+  ansible.builtin.debug:
+    msg: |
+      Pi Coding Agent Configuration:
+      • Binary: {{ npm_global_prefix }}/bin/pi
+      • Version: {{ _pi_check.stdout | default('unknown') }}
+      • npm package: {{ pi_agent_npm_package }}
+      • Extensions: {{ pi_agent_extensions | join(', ') }}
+
+      First run:
+        pi
+  tags: ["pi-coding-agent"]

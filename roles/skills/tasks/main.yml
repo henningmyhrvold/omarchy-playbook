@@ -1,0 +1,174 @@
+---
+# Skills Role - Self-contained tasks
+# Symlinks skill directories from dotfiles repo into agent skill paths
+#
+# Coverage:
+#   ~/.claude/skills/  -> Claude Code (native) + OpenCode (auto-discovers)
+#   ~/.pi/agent/skills/ -> Pi Coding Agent (native)
+#   Pi settings.json   -> Also reads ~/.claude/skills/ for cross-agent compat
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Create agent skill directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ skills_user }}"
+    group: "{{ skills_user }}"
+    mode: "0755"
+  loop: "{{ skills_agent_dirs }}"
+  become: true
+  become_user: "{{ skills_user }}"
+  tags: ["skills", "folders"]
+
+# =============================================================================
+# Discover Skills
+# =============================================================================
+- name: Check if skills source directory exists
+  ansible.builtin.stat:
+    path: "{{ skills_source_dir }}"
+  register: _skills_source
+  become: true
+  become_user: "{{ skills_user }}"
+  tags: ["skills"]
+
+- name: Find all SKILL.md files in dotfiles repo
+  ansible.builtin.find:
+    paths: "{{ skills_source_dir }}"
+    patterns: "SKILL.md"
+    recurse: true
+    file_type: file
+  register: _skill_files
+  become: true
+  become_user: "{{ skills_user }}"
+  when: _skills_source.stat.exists
+  tags: ["skills"]
+
+- name: Extract skill directory names
+  ansible.builtin.set_fact:
+    _skill_dirs: "{{ _skill_files.files | default([]) | map(attribute='path') | map('dirname') | map('basename') | list }}"
+  when: _skills_source.stat.exists
+  tags: ["skills"]
+
+# =============================================================================
+# Symlink Skill Directories into Agent Paths
+# =============================================================================
+- name: Symlink skill directories into agent skill paths
+  ansible.builtin.file:
+    src: "{{ skills_source_dir }}/{{ item.1 }}"
+    dest: "{{ item.0 }}/{{ item.1 }}"
+    state: link
+    force: true
+    owner: "{{ skills_user }}"
+  loop: "{{ skills_agent_dirs | product(_skill_dirs | default([])) | list }}"
+  loop_control:
+    label: "{{ item.0 | regex_replace(skills_home, '~') }}/{{ item.1 }}"
+  become: true
+  become_user: "{{ skills_user }}"
+  when: _skills_source.stat.exists
+  tags: ["skills", "symlinks"]
+
+# =============================================================================
+# Pi Coding Agent: Configure extra skill paths
+# =============================================================================
+- name: Ensure Pi agent directory exists
+  ansible.builtin.file:
+    path: "{{ skills_pi_settings_file | dirname }}"
+    state: directory
+    owner: "{{ skills_user }}"
+    group: "{{ skills_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ skills_user }}"
+  tags: ["skills", "pi"]
+
+- name: Check if Pi settings.json exists
+  ansible.builtin.stat:
+    path: "{{ skills_pi_settings_file }}"
+  register: _pi_settings_stat
+  become: true
+  become_user: "{{ skills_user }}"
+  tags: ["skills", "pi"]
+
+- name: Read existing Pi settings.json
+  ansible.builtin.slurp:
+    path: "{{ skills_pi_settings_file }}"
+  register: _pi_settings_content
+  become: true
+  become_user: "{{ skills_user }}"
+  when: _pi_settings_stat.stat.exists
+  tags: ["skills", "pi"]
+
+- name: Merge skill paths into Pi settings.json
+  ansible.builtin.copy:
+    dest: "{{ skills_pi_settings_file }}"
+    owner: "{{ skills_user }}"
+    group: "{{ skills_user }}"
+    mode: "0644"
+    content: "{{ _pi_settings_merged | to_nice_json }}"
+  vars:
+    _existing: "{{ (_pi_settings_content.content | b64decode | from_json) if _pi_settings_stat.stat.exists else {} }}"
+    _pi_settings_merged: "{{ _existing | combine({'skills': skills_pi_extra_skill_paths}, recursive=True) }}"
+  become: true
+  become_user: "{{ skills_user }}"
+  tags: ["skills", "pi"]
+
+# =============================================================================
+# Clean Up Stale Symlinks
+# =============================================================================
+- name: Find existing symlinks in agent skill directories
+  ansible.builtin.find:
+    paths: "{{ item }}"
+    file_type: link
+    recurse: false
+  loop: "{{ skills_agent_dirs }}"
+  register: _existing_links
+  become: true
+  become_user: "{{ skills_user }}"
+  when: _skills_source.stat.exists
+  tags: ["skills", "cleanup"]
+
+- name: Remove stale skill symlinks
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _existing_links.results | default([]) | map(attribute='files') | flatten }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when:
+    - _skills_source.stat.exists
+    - item.path | basename not in (_skill_dirs | default([]))
+  become: true
+  become_user: "{{ skills_user }}"
+  tags: ["skills", "cleanup"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display skills setup summary
+  ansible.builtin.debug:
+    msg: |
+      Skills Configuration:
+      • Source: {{ skills_source_dir }}
+      • Skills found: {{ _skill_dirs | default([]) | length }}
+      • Skills: {{ _skill_dirs | default([]) | join(', ') | default('none') }}
+
+      Agent coverage:
+      • Claude Code:  {{ skills_claude_dir }}/ (native)
+      • OpenCode:     reads ~/.claude/skills/ automatically (no extra config)
+      • Pi:           {{ skills_pi_dir }}/ (native) + reads ~/.claude/skills/ via settings.json
+
+      Adding a new skill:
+        1. mkdir {{ skills_source_dir }}/<skill-name>/
+        2. Create SKILL.md with frontmatter:
+             ---
+             name: skill-name
+             description: When to use this. Be specific and pushy.
+             ---
+             Instructions here...
+        3. Run: ansible-playbook playbook.yml --tags skills
+
+      Naming convention: gerund form
+        brainstorming, code-reviewing, debugging, deploying
+  tags: ["skills"]

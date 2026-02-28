@@ -1,0 +1,22 @@
+---
+# Pi Coding Agent Role - Self-contained
+pi_agent_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+pi_agent_home: "/home/{{ pi_agent_user }}"
+
+# =============================================================================
+# Package Installation (npm global)
+# =============================================================================
+pi_agent_pacman_packages:
+  - nodejs
+  - npm
+
+pi_agent_npm_package: "@mariozechner/pi-coding-agent"
+
+# Extensions to install via `pi install`
+pi_agent_extensions:
+  - "npm:oh-pi"
+
+# =============================================================================
+# NPM Configuration
+# =============================================================================
+npm_global_prefix: "{{ pi_agent_home }}/.npm-global"
