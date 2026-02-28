@@ -64,16 +64,6 @@
 # =============================================================================
 # PATH Configuration
 # =============================================================================
-- name: Ensure npm global bin is in PATH (zshrc)
-  ansible.builtin.lineinfile:
-    path: "{{ gemini_cli_home }}/.zshrc"
-    line: 'export PATH="{{ npm_global_prefix }}/bin:$PATH"'
-    create: true
-    state: present
-  become: true
-  become_user: "{{ gemini_cli_user }}"
-  tags: ["gemini-cli", "config"]
-
 - name: Ensure npm global bin is in PATH (bashrc)
   ansible.builtin.lineinfile:
     path: "{{ gemini_cli_home }}/.bashrc"

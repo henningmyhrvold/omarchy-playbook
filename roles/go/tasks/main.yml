@@ -32,25 +32,6 @@
   tags: ["go", "folders"]
 
 # =============================================================================
-# Environment Configuration
-# =============================================================================
-- name: Configure Go environment in shell configs
-  ansible.builtin.blockinfile:
-    path: "{{ item }}"
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - Go environment"
-    block: |
-      # Go environment
-      export GOPATH="{{ go_path }}"
-      export GOBIN="{{ go_bin }}"
-      export PATH="{{ go_bin }}:$PATH"
-    create: true
-    mode: "0644"
-  loop: "{{ go_shell_configs }}"
-  become: true
-  become_user: "{{ go_user }}"
-  tags: ["go", "config"]
-
-# =============================================================================
 # Verify Installation
 # =============================================================================
 - name: Check Go version
