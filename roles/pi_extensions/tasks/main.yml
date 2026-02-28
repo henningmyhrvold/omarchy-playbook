@@ -1,0 +1,205 @@
+---
+# Pi Extensions Role - Self-contained tasks
+# Installs tmustier/pi-extensions for pi-coding-agent
+# Includes ralph-wiggum skill, agent-guidance, usage, code-actions, arcade
+
+# =============================================================================
+# Prerequisites Check
+# =============================================================================
+- name: Check if pi CLI is available
+  ansible.builtin.command: "{{ npm_global_prefix }}/bin/pi --version"
+  register: _pi_check
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  tags: ["pi-extensions", "verify"]
+
+- name: Fail if pi CLI is not installed
+  ansible.builtin.fail:
+    msg: >-
+      Pi coding agent is not installed. Run the pi_coding_agent role first:
+        ansible-playbook playbook.yml --tags pi-coding-agent
+  when: _pi_check.rc != 0
+  tags: ["pi-extensions", "verify"]
+
+# =============================================================================
+# Method 1: Install via pi install (recommended)
+# =============================================================================
+- name: Install pi-extensions package via pi install
+  ansible.builtin.command: "{{ npm_global_prefix }}/bin/pi install {{ pi_ext_package }}"
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  environment:
+    PATH: "{{ npm_global_prefix }}/bin:/usr/local/bin:/usr/bin:/bin"
+    HOME: "{{ pi_ext_home }}"
+  register: _pi_ext_install
+  changed_when: "'installed' in (_pi_ext_install.stdout | default('')) or _pi_ext_install.rc == 0"
+  failed_when: false
+  when: not pi_ext_use_local_clone
+  tags: ["pi-extensions", "install"]
+
+# =============================================================================
+# Method 2: Local clone (for development / selective extensions)
+# =============================================================================
+- name: Create local clone directory
+  ansible.builtin.file:
+    path: "{{ pi_ext_local_clone_dest | dirname }}"
+    state: directory
+    owner: "{{ pi_ext_user }}"
+    group: "{{ pi_ext_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  when: pi_ext_use_local_clone
+  tags: ["pi-extensions", "clone"]
+
+- name: Clone pi-extensions repository
+  ansible.builtin.git:
+    repo: "https://github.com/tmustier/pi-extensions.git"
+    dest: "{{ pi_ext_local_clone_dest }}"
+    version: "main"
+    force: false
+    update: true
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  when: pi_ext_use_local_clone
+  tags: ["pi-extensions", "clone"]
+
+# =============================================================================
+# Pi Settings Configuration (filtered extensions or local clone)
+# =============================================================================
+- name: Ensure Pi agent directory exists
+  ansible.builtin.file:
+    path: "{{ pi_ext_settings_file | dirname }}"
+    state: directory
+    owner: "{{ pi_ext_user }}"
+    group: "{{ pi_ext_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  tags: ["pi-extensions", "config"]
+
+- name: Check if Pi settings.json exists
+  ansible.builtin.stat:
+    path: "{{ pi_ext_settings_file }}"
+  register: _pi_ext_settings_stat
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  tags: ["pi-extensions", "config"]
+
+- name: Read existing Pi settings.json
+  ansible.builtin.slurp:
+    path: "{{ pi_ext_settings_file }}"
+  register: _pi_ext_settings_content
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  when: _pi_ext_settings_stat.stat.exists
+  tags: ["pi-extensions", "config"]
+
+# Filter to specific extensions if pi_ext_filter is set
+- name: Configure filtered extensions in Pi settings.json
+  ansible.builtin.copy:
+    dest: "{{ pi_ext_settings_file }}"
+    owner: "{{ pi_ext_user }}"
+    group: "{{ pi_ext_user }}"
+    mode: "0644"
+    content: "{{ _pi_ext_settings_merged | to_nice_json }}"
+  vars:
+    _existing: "{{ (_pi_ext_settings_content.content | b64decode | from_json) if _pi_ext_settings_stat.stat.exists else {} }}"
+    _packages_entry:
+      source: "{{ pi_ext_package }}"
+      extensions: "{{ pi_ext_filter }}"
+    _existing_packages: "{{ _existing.get('packages', []) | rejectattr('source', 'equalto', pi_ext_package) | list }}"
+    _new_packages: "{{ _existing_packages + ([_packages_entry] if pi_ext_filter | length > 0 else []) }}"
+    _pi_ext_settings_merged: "{{ _existing | combine({'packages': _new_packages} if _new_packages | length > 0 else {}, recursive=True) }}"
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  when:
+    - pi_ext_filter | length > 0
+    - not pi_ext_use_local_clone
+  tags: ["pi-extensions", "config"]
+
+# Configure local clone extensions
+- name: Configure local clone extensions in Pi settings.json
+  ansible.builtin.copy:
+    dest: "{{ pi_ext_settings_file }}"
+    owner: "{{ pi_ext_user }}"
+    group: "{{ pi_ext_user }}"
+    mode: "0644"
+    content: "{{ _pi_ext_settings_merged | to_nice_json }}"
+  vars:
+    _existing: "{{ (_pi_ext_settings_content.content | b64decode | from_json) if _pi_ext_settings_stat.stat.exists else {} }}"
+    _existing_extensions: "{{ _existing.get('extensions', []) }}"
+    _new_extensions: "{{ (_existing_extensions + pi_ext_local_extensions) | unique }}"
+    _pi_ext_settings_merged: "{{ _existing | combine({'extensions': _new_extensions}, recursive=True) }}"
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  when: pi_ext_use_local_clone
+  tags: ["pi-extensions", "config"]
+
+# =============================================================================
+# Agent Guidance Setup
+# =============================================================================
+- name: Run agent-guidance setup script (if local clone)
+  ansible.builtin.command:
+    cmd: "./setup.sh"
+    chdir: "{{ pi_ext_local_clone_dest }}/agent-guidance"
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  environment:
+    HOME: "{{ pi_ext_home }}"
+  register: _agent_guidance_setup
+  changed_when: _agent_guidance_setup.rc == 0
+  failed_when: false
+  when:
+    - pi_ext_use_local_clone
+    - pi_ext_setup_agent_guidance
+  tags: ["pi-extensions", "agent-guidance"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Verify pi-extensions are loadable
+  ansible.builtin.command: "{{ npm_global_prefix }}/bin/pi --version"
+  register: _pi_ext_verify
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ pi_ext_user }}"
+  environment:
+    PATH: "{{ npm_global_prefix }}/bin:/usr/local/bin:/usr/bin:/bin"
+    HOME: "{{ pi_ext_home }}"
+  tags: ["pi-extensions", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display pi-extensions setup summary
+  ansible.builtin.debug:
+    msg: |
+      Pi Extensions Configuration:
+      • Package: {{ pi_ext_package }}
+      • Install method: {{ 'local clone' if pi_ext_use_local_clone else 'pi install' }}
+      • Filter: {{ pi_ext_filter | join(', ') if pi_ext_filter | length > 0 else 'all extensions' }}
+      • Pi version: {{ _pi_ext_verify.stdout | default('unknown') }}
+
+      Included extensions:
+      • ralph-wiggum      — Long-running development loops (the Ralph Wiggum technique)
+      • agent-guidance     — Switch between CLAUDE.md/CODEX.md/GEMINI.md per model
+      • /usage             — Cost, tokens, messages dashboard by provider/model
+      • /paste             — Paste editable text
+      • /code              — Pick code blocks to copy, insert, or run
+      • code-actions       — Code action shortcuts
+      • files-widget       — File browser widget
+      • tab-status         — Tab status indicators
+      • arcade             — Minigames while tests run (spice-invaders, picman, ping, tetris)
+
+      Usage in Pi:
+        pi                            # Start pi session
+        /usage                        # View usage stats
+        /code                         # Pick code blocks
+        # Ralph Wiggum skill is auto-loaded for long-running loop tasks
+
+      Settings: {{ pi_ext_settings_file }}
+  tags: ["pi-extensions"]

@@ -1,0 +1,206 @@
+---
+# Ralph Orchestrator Role - Self-contained tasks
+# Installs ralph-orchestrator for autonomous AI agent loop orchestration
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install Python and uv from pacman
+  community.general.pacman:
+    name: "{{ ralph_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["ralph-orchestrator", "packages"]
+
+# =============================================================================
+# Directory Setup
+# =============================================================================
+- name: Create source directory
+  ansible.builtin.file:
+    path: "{{ ralph_git_dest | dirname }}"
+    state: directory
+    owner: "{{ ralph_user }}"
+    group: "{{ ralph_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ ralph_user }}"
+  tags: ["ralph-orchestrator", "folders"]
+
+- name: Ensure ~/.local/bin exists
+  ansible.builtin.file:
+    path: "{{ ralph_home }}/.local/bin"
+    state: directory
+    owner: "{{ ralph_user }}"
+    group: "{{ ralph_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ ralph_user }}"
+  tags: ["ralph-orchestrator", "folders"]
+
+# =============================================================================
+# Clone Repository
+# =============================================================================
+- name: Clone ralph-orchestrator repository
+  ansible.builtin.git:
+    repo: "{{ ralph_git_repo }}"
+    dest: "{{ ralph_git_dest }}"
+    version: "{{ ralph_git_version }}"
+    force: false
+    update: true
+  become: true
+  become_user: "{{ ralph_user }}"
+  tags: ["ralph-orchestrator", "repo"]
+
+# =============================================================================
+# Method 1: Install via uv (recommended)
+# =============================================================================
+- name: Install ralph-orchestrator via uv tool install
+  ansible.builtin.command:
+    cmd: uv tool install --from "{{ ralph_git_dest }}" ralph-orchestrator
+  become: true
+  become_user: "{{ ralph_user }}"
+  environment:
+    PATH: "/usr/bin:/usr/local/bin:{{ ralph_home }}/.local/bin"
+    HOME: "{{ ralph_home }}"
+  register: _ralph_uv_install
+  changed_when: "'Installed' in (_ralph_uv_install.stdout | default('')) or _ralph_uv_install.rc == 0"
+  failed_when: false
+  when: ralph_install_method == "uv"
+  tags: ["ralph-orchestrator", "install"]
+
+# Fallback: if uv tool install fails (already installed), try upgrade
+- name: Upgrade ralph-orchestrator via uv tool (if already installed)
+  ansible.builtin.command:
+    cmd: uv tool upgrade --from "{{ ralph_git_dest }}" ralph-orchestrator
+  become: true
+  become_user: "{{ ralph_user }}"
+  environment:
+    PATH: "/usr/bin:/usr/local/bin:{{ ralph_home }}/.local/bin"
+    HOME: "{{ ralph_home }}"
+  register: _ralph_uv_upgrade
+  changed_when: "'Upgraded' in (_ralph_uv_upgrade.stdout | default(''))"
+  failed_when: false
+  when:
+    - ralph_install_method == "uv"
+    - _ralph_uv_install is defined
+    - _ralph_uv_install.rc != 0
+  tags: ["ralph-orchestrator", "install"]
+
+# =============================================================================
+# Method 2: Install via pip in venv
+# =============================================================================
+- name: Create virtualenv and install ralph-orchestrator via pip
+  ansible.builtin.command:
+    cmd: "python -m pip install --user -e {{ ralph_git_dest }}"
+  become: true
+  become_user: "{{ ralph_user }}"
+  environment:
+    HOME: "{{ ralph_home }}"
+  register: _ralph_pip_install
+  changed_when: "'Successfully installed' in (_ralph_pip_install.stdout | default(''))"
+  failed_when: false
+  when: ralph_install_method == "pip"
+  tags: ["ralph-orchestrator", "install"]
+
+# =============================================================================
+# Method 3: Install via uv sync (source / dev mode)
+# =============================================================================
+- name: Install ralph-orchestrator via uv sync (source mode)
+  ansible.builtin.command:
+    cmd: uv sync
+    chdir: "{{ ralph_git_dest }}"
+  become: true
+  become_user: "{{ ralph_user }}"
+  environment:
+    PATH: "/usr/bin:/usr/local/bin:{{ ralph_home }}/.local/bin"
+    HOME: "{{ ralph_home }}"
+  register: _ralph_source_install
+  changed_when: _ralph_source_install.rc == 0
+  failed_when: false
+  when: ralph_install_method == "source"
+  tags: ["ralph-orchestrator", "install"]
+
+# =============================================================================
+# PATH Configuration
+# =============================================================================
+- name: Ensure ~/.local/bin is in PATH (zshrc)
+  ansible.builtin.lineinfile:
+    path: "{{ ralph_home }}/.zshrc"
+    line: 'export PATH="{{ ralph_home }}/.local/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ ralph_user }}"
+  tags: ["ralph-orchestrator", "config"]
+
+- name: Ensure ~/.local/bin is in PATH (bashrc)
+  ansible.builtin.lineinfile:
+    path: "{{ ralph_home }}/.bashrc"
+    line: 'export PATH="{{ ralph_home }}/.local/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ ralph_user }}"
+  tags: ["ralph-orchestrator", "config"]
+
+# =============================================================================
+# Default Configuration
+# =============================================================================
+- name: Deploy default ralph.yml to home directory
+  ansible.builtin.copy:
+    dest: "{{ ralph_home }}/ralph.yml"
+    owner: "{{ ralph_user }}"
+    group: "{{ ralph_user }}"
+    mode: "0644"
+    content: "{{ ralph_default_config | to_nice_yaml }}"
+    force: false
+  become: true
+  become_user: "{{ ralph_user }}"
+  when: ralph_deploy_default_config | bool
+  tags: ["ralph-orchestrator", "config"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Check if ralph CLI is available
+  ansible.builtin.command: "ralph --help"
+  register: _ralph_check
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ ralph_user }}"
+  environment:
+    PATH: "{{ ralph_home }}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    HOME: "{{ ralph_home }}"
+  tags: ["ralph-orchestrator", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display ralph-orchestrator setup summary
+  ansible.builtin.debug:
+    msg: |
+      Ralph Orchestrator Configuration:
+      • Source: {{ ralph_git_dest }}
+      • Install method: {{ ralph_install_method }}
+      • CLI available: {{ 'yes' if _ralph_check.rc == 0 else 'no — check PATH or install' }}
+
+      Supported agents (auto-detected at runtime):
+      • Claude Code   (claude)
+      • Gemini CLI    (gemini)
+      • OpenCode      (via ACP adapter)
+      • OpenAI Codex  (via ACP adapter)
+      • Pi            (via ACP adapter)
+
+      Usage:
+        cd ~/src/your-project
+        ralph init                          # Create PROMPT.md + ralph.yml
+        ralph run                           # Auto-detect agent, start loop
+        ralph run -a claude -i 20           # Claude Code, max 20 iterations
+        ralph run -a gemini -i 10           # Gemini CLI, max 10 iterations
+        ralph run -p "Fix failing tests"    # Inline prompt
+        ralph status                        # Check loop progress
+
+      Default config: {{ ralph_home }}/ralph.yml
+      Docs: https://mikeyobrien.github.io/ralph-orchestrator/
+  tags: ["ralph-orchestrator"]

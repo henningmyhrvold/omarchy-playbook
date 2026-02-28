@@ -1,0 +1,58 @@
+---
+# Pi Extensions Role - Self-contained
+# Installs tmustier/pi-extensions for pi-coding-agent
+# Includes: ralph-wiggum skill, agent-guidance, usage dashboard, code actions, arcade
+# https://github.com/tmustier/pi-extensions
+
+pi_ext_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+pi_ext_home: "/home/{{ pi_ext_user }}"
+
+# =============================================================================
+# Prerequisites
+# =============================================================================
+# pi CLI must already be installed (via pi_coding_agent role)
+npm_global_prefix: "{{ pi_ext_home }}/.npm-global"
+
+# =============================================================================
+# Extension Package
+# =============================================================================
+pi_ext_package: "git:github.com/tmustier/pi-extensions"
+
+# =============================================================================
+# Extension Selection
+# =============================================================================
+# Install the full package (all extensions) or filter to specific ones
+# Set to empty list [] to install everything
+pi_ext_filter: []
+
+# To install only specific extensions, list them:
+# pi_ext_filter:
+#   - "ralph-wiggum"
+#   - "agent-guidance/agent-guidance.ts"
+#   - "usage-extension"
+#   - "code-actions"
+
+# =============================================================================
+# Agent Guidance Setup
+# =============================================================================
+# agent-guidance extension switches between CLAUDE.md/CODEX.md/GEMINI.md
+# automatically based on the active model
+pi_ext_setup_agent_guidance: true
+
+# =============================================================================
+# Pi Settings Configuration
+# =============================================================================
+pi_ext_settings_file: "{{ pi_ext_home }}/.pi/agent/settings.json"
+
+# Extensions to enable in settings.json when using local clone approach
+# (only used if pi_ext_use_local_clone is true)
+pi_ext_use_local_clone: false
+pi_ext_local_clone_dest: "{{ pi_ext_home }}/.local/src/pi-extensions"
+pi_ext_local_extensions:
+  - "~/pi-extensions/files-widget"
+  - "~/pi-extensions/tab-status/tab-status.ts"
+  - "~/pi-extensions/ralph-wiggum"
+  - "~/pi-extensions/agent-guidance/agent-guidance.ts"
+  - "~/pi-extensions/raw-paste"
+  - "~/pi-extensions/code-actions"
+  - "~/pi-extensions/usage-extension"

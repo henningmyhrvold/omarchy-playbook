@@ -1,0 +1,69 @@
+---
+# Ralph Orchestrator Role - Self-contained
+# Installs ralph-orchestrator for autonomous AI agent loop orchestration
+# Supports: Claude Code, OpenCode, Codex, Gemini CLI, Pi, and ACP agents
+# https://github.com/mikeyobrien/ralph-orchestrator
+
+ralph_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+ralph_home: "/home/{{ ralph_user }}"
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+# ralph-orchestrator is a Python (uv/pip) project
+ralph_pacman_packages:
+  - python
+  - python-pip
+  - python-uv
+  - git
+
+# =============================================================================
+# Installation Method
+# =============================================================================
+# Options: "uv" (recommended), "pip", "source"
+ralph_install_method: "uv"
+
+# =============================================================================
+# Source Configuration (for all methods)
+# =============================================================================
+ralph_git_repo: "https://github.com/mikeyobrien/ralph-orchestrator.git"
+ralph_git_version: "main"
+ralph_git_dest: "{{ ralph_home }}/.local/src/ralph-orchestrator"
+
+# =============================================================================
+# uv Configuration (recommended)
+# =============================================================================
+# uv tool install puts the binary in ~/.local/bin
+ralph_uv_install_global: true
+
+# =============================================================================
+# Default Configuration
+# =============================================================================
+# Deploy a default ralph.yml to the user's home for global defaults
+ralph_deploy_default_config: true
+
+ralph_default_config:
+  agent: "auto"
+  prompt_file: "PROMPT.md"
+  max_iterations: 50
+  max_runtime: 14400
+  verbose: false
+  adapters:
+    claude:
+      enabled: true
+      timeout: 300
+    gemini:
+      enabled: true
+      timeout: 300
+    acp:
+      enabled: true
+      timeout: 300
+      tool_permissions:
+        permission_mode: "auto_approve"
+
+# =============================================================================
+# Shell Configuration
+# =============================================================================
+ralph_shell_configs:
+  - "{{ ralph_home }}/.zshrc"
+  - "{{ ralph_home }}/.bashrc"
