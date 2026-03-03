@@ -22,6 +22,9 @@ configure_repos: true
 mcp_filesystem_enabled: true
 mcp_ref_enabled: true
 
+# AI offline
+pi_offline_install: true
+
 # =============================================================================
 # Dotfiles Repository (used by multiple roles)
 # =============================================================================

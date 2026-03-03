@@ -1,0 +1,222 @@
+---
+# Pi Coding Agent Offline Role - Self-contained tasks
+# Extracts pre-built tarballs, configures PATH, no internet needed
+
+# =============================================================================
+# Prerequisites
+# =============================================================================
+- name: Install Node.js from pacman
+  community.general.pacman:
+    name: "{{ pi_offline_pacman_packages }}"
+    state: present
+  become: true
+  tags: ["pi-offline", "packages"]
+
+# =============================================================================
+# Verify Tarballs Exist
+# =============================================================================
+- name: Check npm global tarball exists
+  ansible.builtin.stat:
+    path: "{{ pi_offline_npm_tarball }}"
+  register: _npm_tarball
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "verify"]
+
+- name: Check agent data tarball exists
+  ansible.builtin.stat:
+    path: "{{ pi_offline_agent_tarball }}"
+  register: _agent_tarball
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "verify"]
+
+- name: Fail if npm global tarball is missing
+  ansible.builtin.fail:
+    msg: >
+      Pi offline npm tarball not found at {{ pi_offline_npm_tarball }}.
+      Run bundle.sh on an online machine first.
+  when: not _npm_tarball.stat.exists
+  tags: ["pi-offline", "verify"]
+
+- name: Fail if agent data tarball is missing
+  ansible.builtin.fail:
+    msg: >
+      Pi offline agent tarball not found at {{ pi_offline_agent_tarball }}.
+      Run bundle.sh on an online machine first.
+  when: not _agent_tarball.stat.exists
+  tags: ["pi-offline", "verify"]
+
+# =============================================================================
+# Extract npm Global Prefix
+# =============================================================================
+- name: Create npm global prefix directory
+  ansible.builtin.file:
+    path: "{{ pi_offline_npm_prefix }}"
+    state: directory
+    owner: "{{ pi_offline_user }}"
+    group: "{{ pi_offline_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "install"]
+
+- name: Extract npm global tarball
+  ansible.builtin.unarchive:
+    src: "{{ pi_offline_npm_tarball }}"
+    dest: "{{ pi_offline_home }}"
+    remote_src: true
+    owner: "{{ pi_offline_user }}"
+    group: "{{ pi_offline_user }}"
+    extra_opts:
+      - "--strip-components=0"
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "install"]
+
+# The tarball contains npm-global/ at root, which extracts to
+# ~/.npm-global/ (matching our prefix path since dest is home)
+# If the tarball structure doesn't match, adjust with a rename:
+- name: Ensure npm-global is at the correct path
+  ansible.builtin.command:
+    cmd: "ls {{ pi_offline_npm_prefix }}/bin/pi"
+  register: _pi_bin_check
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "verify"]
+
+- name: Move npm-global if extracted to wrong location
+  ansible.builtin.shell: |
+    if [ -d "{{ pi_offline_home }}/npm-global" ] && [ ! -f "{{ pi_offline_npm_prefix }}/bin/pi" ]; then
+      rm -rf "{{ pi_offline_npm_prefix }}"
+      mv "{{ pi_offline_home }}/npm-global" "{{ pi_offline_npm_prefix }}"
+    fi
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  when: _pi_bin_check.rc != 0
+  tags: ["pi-offline", "install"]
+
+# =============================================================================
+# Extract Pi Agent Data (extensions + settings)
+# =============================================================================
+- name: Create pi agent directory
+  ansible.builtin.file:
+    path: "{{ pi_offline_pi_agent_dir }}"
+    state: directory
+    owner: "{{ pi_offline_user }}"
+    group: "{{ pi_offline_user }}"
+    mode: "0755"
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "install"]
+
+- name: Extract pi agent data tarball
+  ansible.builtin.unarchive:
+    src: "{{ pi_offline_agent_tarball }}"
+    dest: "{{ pi_offline_home }}"
+    remote_src: true
+    owner: "{{ pi_offline_user }}"
+    group: "{{ pi_offline_user }}"
+    extra_opts:
+      - "--strip-components=0"
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "install"]
+
+# =============================================================================
+# Fix Permissions on Binaries
+# =============================================================================
+- name: Ensure pi binary is executable
+  ansible.builtin.file:
+    path: "{{ pi_offline_npm_prefix }}/bin/pi"
+    mode: "0755"
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "permissions"]
+
+- name: Find all bin stubs and ensure they are executable
+  ansible.builtin.shell: |
+    find "{{ pi_offline_npm_prefix }}/bin" -type f -exec chmod +x {} \;
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  changed_when: false
+  tags: ["pi-offline", "permissions"]
+
+# =============================================================================
+# PATH Configuration
+# =============================================================================
+- name: Ensure npm global bin is in PATH (zshrc)
+  ansible.builtin.lineinfile:
+    path: "{{ pi_offline_home }}/.zshrc"
+    line: 'export PATH="{{ pi_offline_npm_prefix }}/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "config"]
+
+- name: Ensure npm global bin is in PATH (bashrc)
+  ansible.builtin.lineinfile:
+    path: "{{ pi_offline_home }}/.bashrc"
+    line: 'export PATH="{{ pi_offline_npm_prefix }}/bin:$PATH"'
+    create: true
+    state: present
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  tags: ["pi-offline", "config"]
+
+# =============================================================================
+# Verify Installation
+# =============================================================================
+- name: Check pi binary works
+  ansible.builtin.command: "{{ pi_offline_npm_prefix }}/bin/pi --version"
+  register: _pi_version
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  environment:
+    PATH: "{{ pi_offline_npm_prefix }}/bin:/usr/local/bin:/usr/bin:/bin"
+  tags: ["pi-offline", "verify"]
+
+- name: Check pi extensions are registered
+  ansible.builtin.command: "{{ pi_offline_npm_prefix }}/bin/pi list"
+  register: _pi_list
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ pi_offline_user }}"
+  environment:
+    PATH: "{{ pi_offline_npm_prefix }}/bin:/usr/local/bin:/usr/bin:/bin"
+    HOME: "{{ pi_offline_home }}"
+  tags: ["pi-offline", "verify"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display pi offline setup summary
+  ansible.builtin.debug:
+    msg: |
+      Pi Coding Agent Offline Installation:
+      • Binary: {{ pi_offline_npm_prefix }}/bin/pi
+      • Version: {{ _pi_version.stdout | default('unknown') }}
+      • Extensions: {{ _pi_list.stdout | default('run pi list to check') }}
+      • npm prefix: {{ pi_offline_npm_prefix }}
+      • Agent data: {{ pi_offline_pi_agent_dir }}
+
+      Source tarballs:
+      • {{ pi_offline_npm_tarball }}
+      • {{ pi_offline_agent_tarball }}
+
+      To regenerate tarballs (on an online machine):
+        cd {{ pi_offline_bundle_dir }}
+        ./bundle.sh
+
+      To update pi version:
+        1. Run bundle.sh on an online machine
+        2. Commit new tarballs to dotfiles repo
+        3. Transfer to offline machine
+        4. Run: ansible-playbook playbook.yml --tags pi-offline
+  tags: ["pi-offline"]
