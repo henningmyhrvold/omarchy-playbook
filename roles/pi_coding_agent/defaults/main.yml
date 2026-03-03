@@ -15,6 +15,12 @@ pi_agent_npm_package: "@mariozechner/pi-coding-agent"
 # Extensions to install via `pi install`
 pi_agent_extensions:
   - "npm:oh-pi"
+  - "npm:pi-hooks"
+  - "npm:pi-context"
+  - "npm:pi-interview"
+  - "npm:pi-subagents"
+  - "npm:pi-extensions"
+  - "npm:@aliou/pi-guardrails"
 
 # =============================================================================
 # NPM Configuration
