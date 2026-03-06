@@ -41,7 +41,7 @@
     - { role: gemini_cli, tags: ["gemini-cli", "ai"] }
     - { role: pi_coding_agent, tags: ["pi-coding-agent", "ai"] }
     - { role: skills, tags: ["skills", "ai"] }
-    - { role: pi_coding_agent_offline, tags: ["pi-offline", "ai"], when: pi_offline_install | default(false) }
+    #- { role: pi_coding_agent_offline, tags: ["pi-offline", "ai"], when: pi_offline_install | default(false) }
 
     # MCP Servers (Docker-based)
     - { role: mcp_filesystem, tags: ["mcp", "mcp-filesystem"], when: mcp_filesystem_enabled | default(true) }
@@ -52,4 +52,4 @@
     - { role: folders, tags: ["folders"] }
     - { role: dotfiles, tags: ["dotfiles"] }
     - { role: links, tags: ["links"] }
-    - { role: omarchy_monitor_settings, tags: ["omarchy-monitor"] }
+    #- { role: omarchy_monitor_settings, tags: ["omarchy-monitor"] }
