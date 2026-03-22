@@ -1,0 +1,19 @@
+[Unit]
+Description=SOCKS5 proxy via Tor hidden service to home vault
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/autossh -M 0 -N \
+  -o "ProxyCommand=nc -x 127.0.0.1:9050 %%h %%p" \
+  -o "ServerAliveInterval=60" \
+  -o "ServerAliveCountMax=3" \
+  -o "ExitOnForwardFailure=yes" \
+  -o "StrictHostKeyChecking=yes" \
+  -i %h/.ssh/{{ tor_proxy_ssh_key }} \
+  -D 127.0.0.1:{{ tor_proxy_socks_port }} \
+  {{ tor_proxy_user }}@<your.onion>
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target

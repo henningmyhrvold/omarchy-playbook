@@ -1,0 +1,6 @@
+---
+tor_proxy_user: "henning"
+tor_proxy_ssh_key: "protectli"        # filename under ~/.ssh/
+tor_proxy_socks_port: 1080
+tor_proxy_enable_lingering: true      # run loginctl enable-linger (idempotent)
+tor_proxy_install_helpers: true       # install tor-on / tor-off to /usr/local/bin/

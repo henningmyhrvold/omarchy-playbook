@@ -30,6 +30,7 @@
     - { role: dns, tags: ["dns", "network"] }
     - { role: nftables, tags: ["nftables", "firewall"] }
     - { role: wireguard, tags: ["wireguard", "vpn"] }
+    - { role: tor_proxy, tags: ["tor_proxy", "network"] }
 
     # Containers
     - { role: docker_engine, tags: ["docker"] }

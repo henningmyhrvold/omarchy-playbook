@@ -1,0 +1,119 @@
+---
+# =============================================================================
+# Packages
+# =============================================================================
+- name: Install Tor proxy packages
+  ansible.builtin.pacman:
+    name:
+      - tor
+      - autossh
+      - openbsd-netcat
+    state: present
+    update_cache: true
+  become: true
+  tags: ["tor-proxy", "packages"]
+
+# =============================================================================
+# System Tor daemon
+# =============================================================================
+- name: Enable and start tor system service
+  ansible.builtin.systemd:
+    name: tor
+    enabled: true
+    state: started
+  become: true
+  tags: ["tor-proxy", "systemd"]
+
+# =============================================================================
+# Systemd user service directory
+# =============================================================================
+- name: Ensure systemd user service directory exists
+  ansible.builtin.file:
+    path: "/home/{{ tor_proxy_user }}/.config/systemd/user"
+    state: directory
+    owner: "{{ tor_proxy_user }}"
+    group: "{{ tor_proxy_user }}"
+    mode: "0755"
+  become: true
+  tags: ["tor-proxy", "systemd"]
+
+# =============================================================================
+# Deploy service file (idempotent: never overwrite once created)
+# =============================================================================
+- name: Check if tor-socks-proxy.service already exists
+  ansible.builtin.stat:
+    path: "/home/{{ tor_proxy_user }}/.config/systemd/user/tor-socks-proxy.service"
+  register: tor_service_stat
+  tags: ["tor-proxy", "systemd"]
+
+- name: Deploy tor-socks-proxy.service template (first run only)
+  ansible.builtin.template:
+    src: tor-socks-proxy.service.j2
+    dest: "/home/{{ tor_proxy_user }}/.config/systemd/user/tor-socks-proxy.service"
+    owner: "{{ tor_proxy_user }}"
+    group: "{{ tor_proxy_user }}"
+    mode: "0644"
+  become: true
+  become_user: "{{ tor_proxy_user }}"
+  when: not tor_service_stat.stat.exists
+  tags: ["tor-proxy", "systemd"]
+
+# =============================================================================
+# Lingering (allows user services to start at boot without login)
+# =============================================================================
+- name: Enable lingering for {{ tor_proxy_user }}
+  ansible.builtin.command: "loginctl enable-linger {{ tor_proxy_user }}"
+  when: tor_proxy_enable_lingering | bool
+  changed_when: false
+  failed_when: false
+  become: true
+  tags: ["tor-proxy", "systemd"]
+
+# =============================================================================
+# Enable and start the user service
+# (systemd will not start it until <your.onion> is replaced)
+# =============================================================================
+- name: Enable tor-socks-proxy user service
+  ansible.builtin.systemd:
+    name: tor-socks-proxy.service
+    scope: user
+    enabled: true
+    daemon_reload: true
+  become: true
+  become_user: "{{ tor_proxy_user }}"
+  tags: ["tor-proxy", "systemd"]
+
+# =============================================================================
+# Helper commands tor-on / tor-off
+# =============================================================================
+- name: Install tor-on / tor-off helper scripts
+  become: true
+  when: tor_proxy_install_helpers | bool
+  block:
+    - name: Install tor-on
+      ansible.builtin.copy:
+        dest: /usr/local/bin/tor-on
+        mode: "0755"
+        owner: root
+        group: root
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          systemctl start tor
+          systemctl --user start tor-socks-proxy.service
+          systemctl --user --no-pager status tor-socks-proxy.service || true
+          echo "Tor SOCKS5 proxy is ON (127.0.0.1:{{ tor_proxy_socks_port }})."
+
+    - name: Install tor-off
+      ansible.builtin.copy:
+        dest: /usr/local/bin/tor-off
+        mode: "0755"
+        owner: root
+        group: root
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          systemctl --user stop tor-socks-proxy.service
+          echo "Tor SOCKS5 proxy is OFF."
+          systemctl stop tor
+  tags: ["tor-proxy", "helpers"]
