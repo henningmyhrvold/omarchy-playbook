@@ -18,13 +18,6 @@ configure_dotfiles: true
 configure_extras: true
 configure_repos: true
 
-# MCP Feature Toggles
-mcp_filesystem_enabled: true
-mcp_ref_enabled: true
-
-# AI offline
-pi_offline_install: true
-
 # =============================================================================
 # Dotfiles Repository (used by multiple roles)
 # =============================================================================
@@ -54,6 +47,9 @@ pacman_installed_packages:
   - jq
   - tree
   - lsof
+  - bat
+  - glow
+  - git-delta
   - smartmontools
   - rsync
   - fwupd
@@ -89,10 +85,6 @@ aur_installed_packages:
   - google-chrome
   - lazydocker
   - omnissa-horizon-client
- ## Youtube music takes hours to install because og qt install via chrome instead
- # - qt5-webengine
- # - qtws-base
- # - youtube-music-desktop
  ## Hardware
  # - tio
  # - kermit
@@ -122,9 +114,6 @@ dotfiles_links:
   - { src: "zsh/.zshrc", dest: ".zshrc" }
   - { src: "zsh/.zsh_profile", dest: ".zsh_profile" }
   - { src: "zsh/.p10k.zsh", dest: ".p10k.zsh" }
-  - { src: "mcp/hub.json", dest: ".config/mcp/hub.json" }
-  - { src: "mcp/mcphub.json", dest: ".config/mcp/mcphub.json" }
-  - { src: "mcp/docker-compose.mcp.yml", dest: ".config/mcp/docker-compose.mcp.yml" }
 
 # Files that should be marked as executable
 dotfiles_files_binaries:
@@ -140,14 +129,3 @@ dns_configure_networkmanager: true
 # Serial/HW Development
 # =============================================================================
 hwdev_openwrt_tooling: true
-
-# =============================================================================
-# MCP Configuration Overrides (Claude Code)
-# =============================================================================
-mcp_filesystem_allowed_dirs:
-  - "/home/henning/src"
-  - "/home/henning/projects"
-  - "/home/henning/Documents"
-
-mcp_network_mode: "host"
-mcp_enable_lingering: true

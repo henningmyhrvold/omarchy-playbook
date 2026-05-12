@@ -42,11 +42,6 @@
     - { role: pi_coding_agent, tags: ["pi-coding-agent", "ai"] }
     - { role: skills, tags: ["skills", "ai"] }
 
-    # MCP Servers (Docker-based)
-    - { role: mcp_filesystem, tags: ["mcp", "mcp-filesystem"], when: mcp_filesystem_enabled | default(true) }
-    - { role: mcp_ref, tags: ["mcp", "mcp-ref"], when: mcp_ref_enabled | default(true) }
-    - { role: docker_mcp, tags: ["mcp", "docker-mcp"] }
-
     # Utility (dotfiles, folders, extra links)
     - { role: folders, tags: ["folders"] }
     - { role: dotfiles, tags: ["dotfiles"] }
