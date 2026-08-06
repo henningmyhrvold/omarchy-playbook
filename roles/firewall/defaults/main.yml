@@ -1,0 +1,25 @@
+---
+# Firewall Role - Self-contained
+# Adds rules to Omarchy 4's ufw baseline. Replaces the retired nftables role.
+#
+# Omarchy's install/config/firewall.sh already establishes:
+#   - default deny incoming / allow outgoing
+#   - LocalSend on 53317 tcp+udp
+#   - container->host DNS allowances on 172.17.0.1:53
+#   - the ufw-docker after.rules block
+# This role must NOT reset ufw or change those defaults, or Docker DNS breaks.
+
+firewall_allowed_tcp_ports: [22]
+firewall_allowed_udp_ports: []
+
+# The retired nftables ruleset accepted all inbound traffic from LAN ranges.
+# Off by default — Omarchy's baseline is deny-in and we do not widen it silently.
+firewall_allow_lan: false
+firewall_lan_sources:
+  - "10.0.0.0/8"
+  - "172.16.0.0/12"
+  - "192.168.0.0/16"
+
+# ufw itself ships in Omarchy 4's base packages; assert rather than install.
+firewall_package: ufw
+firewall_service: ufw.service

@@ -1,0 +1,50 @@
+---
+# Agents Role - Self-contained
+# Config-side ownership of coding agents. Omarchy 4 installs the *binaries*
+# itself: install/user/mise.sh runs `omarchy-mise-install` for claude, codex,
+# gemini, opencode, pi, omp, crush, grok and copilot, which writes lazy shims
+# into ~/.local/bin that resolve through mise on first call.
+#
+# This role therefore does NOT install agents. It:
+#   1. removes the legacy npm-global installs and PATH entries that would
+#      otherwise shadow those shims, and
+#   2. installs pi extensions, which mise does not manage.
+#
+# Replaces the retired claude_code, gemini_cli, openai_codex and
+# pi_coding_agent roles.
+
+agents_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+agents_home: "/home/{{ agents_user }}"
+
+# =============================================================================
+# Legacy cleanup
+# =============================================================================
+# Where the old roles installed agents before the handover to mise.
+agents_legacy_npm_prefix: "{{ agents_home }}/.npm-global"
+
+# Binaries the old roles left in ~/.npm-global/bin. Removed so a stale copy
+# cannot win over the mise shim.
+agents_legacy_binaries:
+  - pi
+  - gemini
+  - codex
+  - claude
+
+# The old roles appended `export PATH="~/.npm-global/bin:$PATH"` to ~/.bashrc.
+# Because it lands at the end of the file it prepends, beating both mise's
+# shim dir and Omarchy's ~/.local/bin. Removed here for one release cycle.
+# NOTE: the zsh half of this line lives in the omarchy-dotfiles repo
+# (zsh/.zshrc) and must be removed there — Ansible only symlinks that file.
+agents_legacy_path_line: 'export PATH="{{ agents_legacy_npm_prefix }}/bin:$PATH"'
+
+# =============================================================================
+# Pi extensions
+# =============================================================================
+# mise installs the `pi` binary; extensions are still ours to manage.
+agents_pi_shim: "{{ agents_home }}/.local/bin/pi"
+
+agents_pi_extensions:
+  - "npm:oh-pi"
+  - "npm:pi-context"
+  - "npm:pi-interview"
+  - "npm:pi-extensions"

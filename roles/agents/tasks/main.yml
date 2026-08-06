@@ -1,0 +1,101 @@
+---
+# Agents Role - Self-contained tasks
+# Config-side only. Omarchy 4 (mise) owns the agent binaries.
+
+# =============================================================================
+# Legacy Cleanup — must run before anything resolves an agent binary
+# =============================================================================
+- name: Remove legacy npm-global PATH line from .bashrc
+  ansible.builtin.lineinfile:
+    path: "{{ agents_home }}/.bashrc"
+    line: "{{ agents_legacy_path_line }}"
+    state: absent
+  become: true
+  become_user: "{{ agents_user }}"
+  failed_when: false
+  tags: ["agents", "cleanup", "config"]
+
+- name: Remove stale npm-global agent binaries
+  ansible.builtin.file:
+    path: "{{ agents_legacy_npm_prefix }}/bin/{{ item }}"
+    state: absent
+  loop: "{{ agents_legacy_binaries }}"
+  become: true
+  become_user: "{{ agents_user }}"
+  tags: ["agents", "cleanup"]
+
+- name: Warn if a legacy npm-global PATH entry survives in zsh
+  ansible.builtin.command: "grep -l npm-global {{ agents_home }}/.zshrc"
+  register: _zshrc_npm
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ agents_user }}"
+  tags: ["agents", "cleanup", "verify"]
+
+- name: Report surviving zsh PATH entry
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ agents_home }}/.zshrc still prepends ~/.npm-global/bin, which
+      shadows Omarchy's mise shims. That file is a symlink into the
+      omarchy-dotfiles repo — remove the line there, not here.
+  when: _zshrc_npm.rc == 0
+  tags: ["agents", "cleanup", "verify"]
+
+# =============================================================================
+# Verify the mise shims Omarchy is expected to provide
+# =============================================================================
+- name: Check for the pi shim installed by Omarchy
+  ansible.builtin.stat:
+    path: "{{ agents_pi_shim }}"
+  register: _pi_shim
+  become: true
+  become_user: "{{ agents_user }}"
+  tags: ["agents", "verify"]
+
+- name: Report missing pi shim
+  ansible.builtin.debug:
+    msg: >-
+      pi shim not found at {{ agents_pi_shim }}. Omarchy 4 creates it via
+      `omarchy-mise-install pi`. Run that (or `omarchy-default-agent pi`)
+      before extensions can be installed. Skipping extensions this run.
+  when: not _pi_shim.stat.exists
+  tags: ["agents", "verify"]
+
+# =============================================================================
+# Pi Extensions
+# =============================================================================
+# The shim is lazy: the first invocation runs `mise use -g pi`, which downloads
+# the agent. That means this task can be slow on a cold machine — and unlike the
+# old role it is NOT wrapped in `failed_when: false`, because a silent success
+# there previously hid the fact that nothing was installed at all.
+- name: Install pi extensions
+  ansible.builtin.command: "{{ agents_pi_shim }} install {{ item }}"
+  loop: "{{ agents_pi_extensions }}"
+  become: true
+  become_user: "{{ agents_user }}"
+  environment:
+    PATH: "{{ agents_home }}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    HOME: "{{ agents_home }}"
+  register: _pi_ext
+  changed_when: "'installed' in (_pi_ext.stdout | default(''))"
+  when: _pi_shim.stat.exists
+  tags: ["agents", "extensions"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Display agents summary
+  ansible.builtin.debug:
+    msg: |
+      Coding Agents:
+      • Binaries: owned by Omarchy 4 via mise (~/.local/bin shims)
+        Set the default with: omarchy-default-agent <pi|claude|codex|gemini|opencode>
+      • This role owns: legacy cleanup + pi extensions
+
+      Legacy npm-global installs removed: {{ agents_legacy_binaries | join(', ') }}
+      Pi extensions: {{ agents_pi_extensions | join(', ') if _pi_shim.stat.exists else 'skipped (pi shim missing)' }}
+
+      Verify nothing shadows the shims:
+        type -a claude gemini pi codex
+  tags: ["agents"]

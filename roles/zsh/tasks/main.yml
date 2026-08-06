@@ -1,7 +1,7 @@
 ---
 # ZSH Role — Omarchy-adapted tasks
 # Installs Zsh, Oh-My-Zsh, Powerlevel10k, and configures everything
-# Does NOT change default shell — Ghostty launches zsh via its config
+# Does NOT change default shell — the terminal launches zsh via its own config
 
 # =============================================================================
 # Package Installation
@@ -81,7 +81,8 @@
   ignore_errors: true
   tags: ["zsh", "dotfiles"]
 
-# NOTE: chsh removed — bash stays as login shell, Ghostty launches zsh
+# NOTE: chsh removed — bash stays as login shell; the terminal launches zsh.
+# Omarchy 4 defaults to foot, so that config lives in the omarchy-dotfiles repo.
 
 # =============================================================================
 # Symlinks

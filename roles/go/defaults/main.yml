@@ -10,7 +10,7 @@ go_home: "/home/{{ go_user }}"
 # =============================================================================
 go_pacman_packages:
   - go
-  - git  # Required for go install/get
+  # git removed — Omarchy 4 ships it in omarchy-base.packages
 
 # =============================================================================
 # Go Environment Variables

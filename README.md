@@ -1,44 +1,35 @@
-# Dotfiles-Playbook
+# Omarchy Workstation Playbook
 
-Ansible playbook for configuring my Arch Linux workstation.
+Ansible playbook for configuring my Arch Linux workstation on top of **Omarchy 4 ("Quattro")**.
 
-## Key Feature: Self-Contained Roles
+> **Requires Omarchy 4.** `bootstrap.sh` refuses to run on Omarchy 3.x. Upgrade with
+> `omarchy-upgrade-to-quattro` first. See [PLAN.md](PLAN.md) for what the migration changed.
 
-Each role is **fully self-contained** and can be run independently. This means:
-- Each role installs its own packages
-- Each role creates its own directories
-- Each role sets up its own symlinks
-- You can pick and choose which roles to run
+## Layering
+
+Omarchy owns the desktop and, as of Quattro, a good deal more:
+
+| Omarchy 4 owns | This playbook owns |
+|---|---|
+| Hyprland (Lua config), Quickshell shell (bar, menu, notifications, lock, OSD) | Extra packages from the official repos and AUR |
+| foot, Neovim, fonts, audio, SDDM, themes | Zsh + Oh-My-Zsh + Powerlevel10k |
+| Firewall baseline (ufw + ufw-docker) | Extra firewall rules |
+| DNS (`omarchy-dns`, systemd-resolved) | WireGuard, Tor SOCKS proxy |
+| `/etc/docker/daemon.json` | Docker service, group membership, Python bindings |
+| Coding-agent binaries via `mise` | Agent skills and Pi extensions |
+| | VSCode, Go, dotfile symlinks |
+
+Nothing here writes into Omarchy's own files. On Quattro those live in
+`/usr/share/omarchy` (pacman-owned); `~/.local/share/omarchy` is a compatibility symlink.
 
 ## Quick Start
 
 ```bash
 # Change username to yours
-git grep -l henning | xargs sed -i 's/henning/youruser/g'
+./rename.sh
 
 # Run the playbook
 ./bootstrap.sh
-```
-
-## What It Does
-
-- Installs packages from official repos (pacman) and AUR (paru)
-- Sets up Hyprland (Wayland compositor), Waybar, Wofi, etc.
-- Configures Zsh with Oh-My-Zsh and Powerlevel10k
-- Links dotfiles from the [dotfiles repo](https://github.com/henningmyhrvold/dotfiles.git)
-- Sets up Docker, development tools, and Claude AI tools
-
-## Structure
-
-```
-.
-├── bootstrap.sh      # Entry point - installs requirements and runs playbook
-├── playbook.yml      # Main Ansible playbook
-├── config.yml        # All configuration variables
-├── inventory         # Ansible inventory (localhost)
-├── requirements.yml  # Ansible Galaxy collections
-├── roles/            # Ansible roles (all self-contained)
-└── ansible.cfg       # Ansible configuration
 ```
 
 ## Usage
@@ -47,49 +38,65 @@ git grep -l henning | xargs sed -i 's/henning/youruser/g'
 # Run everything
 ./bootstrap.sh
 
-# Run specific roles (they're self-contained!)
-ansible-playbook playbook.yml --tags "zsh"
-ansible-playbook playbook.yml --tags "nvim"
-ansible-playbook playbook.yml --tags "hyprland"
-ansible-playbook playbook.yml --tags "docker"
+# Run specific roles (they're self-contained)
+ansible-playbook playbook.yml --tags zsh
+ansible-playbook playbook.yml --tags "docker,agents"
 
-# Run multiple roles
-ansible-playbook playbook.yml --tags "zsh,nvim,tmux"
+# Cross-cutting tags spanning roles
+ansible-playbook playbook.yml --tags packages
+ansible-playbook playbook.yml --skip-tags packages
 
-# Skip certain roles
-ansible-playbook playbook.yml --skip-tags "mcp"
+# Dry run — the primary way to validate a change
+ansible-playbook playbook.yml --check --diff
 
-# Dry run
-ansible-playbook playbook.yml --check
-
-# Verbose output
-ansible-playbook playbook.yml -v
+# Inspect
+ansible-playbook playbook.yml --syntax-check
+ansible-playbook playbook.yml --list-tags
 ```
 
-## Self-Contained Roles
+## Roles
 
-Each of these roles can be run independently:
+Each role is self-contained: it installs its own packages, creates its own
+directories, and makes its own symlinks, so `--tags <role>` is always a
+complete standalone run.
 
 | Role | Description | Tag |
 |------|-------------|-----|
-| `zsh` | Zsh with Oh-My-Zsh and Powerlevel10k | `zsh` |
-| `nvim` | Neovim with LazyVim | `nvim` |
-| `tmux` | Tmux with TPM | `tmux` |
-| `ghostty` | Ghostty terminal | `ghostty` |
-| `hyprland` | Hyprland + Waybar + Wofi + Dunst | `hyprland` |
-| `audio` | PipeWire audio stack | `audio` |
-| `fonts` | System fonts | `fonts` |
-| `sddm` | Display manager | `sddm` |
-| `docker_engine` | Docker + BuildKit | `docker` |
-| `claude_code` | Claude Code CLI | `claude-code` |
-| `claude_desktop_wayland` | Claude Desktop (Wayland) | `claude-desktop` |
-| `mcp_filesystem` | MCP Filesystem server | `mcp-filesystem` |
-| `mcp_github` | MCP GitHub server | `mcp-github` |
-| `mcp_ref` | MCP Context7 server | `mcp-ref` |
+| `pacman` | Extra packages from the official repos | `pacman` |
+| `aur` | Asserts `yay` is available (Omarchy ships it) | `aur` |
+| `aur_packages` | Extra packages from the AUR | `aur-packages` |
+| `zsh` | Zsh with Oh-My-Zsh and Powerlevel10k (does not `chsh`) | `zsh` |
+| `vscode` | VSCode with Wayland flags, extensions, settings | `vscode` |
+| `go` | Go toolchain and `GOPATH` workspace | `go` |
+| `firewall` | Extra ufw rules on top of Omarchy's baseline | `firewall` |
+| `wireguard` | WireGuard tooling, killswitch, `wg-on`/`wg-off` | `wireguard` |
+| `tor_proxy` | Tor SOCKS proxy with `tor-on`/`tor-off` | `tor_proxy` |
+| `docker_engine` | Docker service, docker group, Python bindings | `docker` |
+| `agents` | Coding-agent config: legacy cleanup + Pi extensions | `agents` |
+| `skills` | Symlinks agent skills into Claude Code and Pi | `skills` |
+| `folders` | Creates directories listed in `config.yml` | `folders` |
+| `dotfiles` | Clones the dotfiles repo and symlinks configs | `dotfiles` |
+| `links` | Extra symlinks from `regular_links` | `links` |
 
-## Adding Packages
+Dormant roles, present but not in `playbook.yml`: `npm_global`, `permissions`, `pi_extensions`.
 
-Edit `config.yml` for packages not covered by self-contained roles:
+### Coding agents
+
+Omarchy 4 installs agent binaries itself through `mise` — `omarchy-mise-install`
+writes lazy shims into `~/.local/bin` for `claude`, `codex`, `gemini`, `pi`,
+`opencode` and others. This playbook no longer installs them. Pick a default with:
+
+```bash
+omarchy-default-agent claude   # or pi, codex, gemini, opencode …
+```
+
+The `agents` role removes the older npm-global installs and PATH entries that
+would otherwise shadow those shims, and installs Pi extensions.
+
+## Configuration
+
+Edit `config.yml` — it is the single file you change. Role defaults live in
+`roles/<role>/defaults/main.yml` and anything in `config.yml` overrides them.
 
 ```yaml
 # Official repos
@@ -99,33 +106,24 @@ pacman_installed_packages:
 # AUR
 aur_installed_packages:
   - aur-package-name
-```
 
-Or override role defaults:
+# Extra firewall rules (Omarchy owns the deny-in baseline)
+firewall_allowed_tcp_ports: [22]
 
-```yaml
-# Add to config.yml to override zsh role packages
-zsh_pacman_packages:
-  - zsh
-  - zsh-autosuggestions
-  - zsh-syntax-highlighting  # Added!
-```
-
-## Adding Dotfile Symlinks
-
-Edit `config.yml`:
-
-```yaml
+# Dotfile symlinks
 dotfiles_links:
   - { src: "app/config", dest: ".config/app/config" }
 ```
 
 ## Requirements
 
-- Arch Linux
-- Ansible (`sudo pacman -S ansible`)
+- Arch Linux with **Omarchy 4**
+- Ansible (`sudo pacman -S ansible`) — `bootstrap.sh` installs it if missing
 - sudo privileges
 
 ## Companion Repository
 
-[dotfiles](https://github.com/henningmyhrvold/dotfiles.git) - Contains the actual configuration files that get symlinked.
+[omarchy-dotfiles](https://github.com/henningmyhrvold/omarchy-dotfiles) — the actual
+config files that get symlinked, plus the Omarchy customization scripts. Note the
+playbook clones it with `update: false`, so it never pulls over local edits; update
+it manually with `git -C ~/src/omarchy-dotfiles pull`.

@@ -1,16 +1,17 @@
 ---
 docker_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+# docker, docker-compose and docker-buildx ship in Omarchy 4's base packages.
+# Only the Python bindings (used by community.docker) are ours to install.
 docker_pacman_packages:
-  - docker
-  - docker-compose
-  - docker-buildx
   - python
   - python-pip
   - python-requests
   - python-docker
 docker_users:
   - "{{ docker_user }}"
-docker_manage_daemon_json: true
+# Omarchy 4 owns /etc/docker/daemon.json (package-owned; its dns/bip values are
+# coupled to systemd-resolved and ufw). Overridden to false in config.yml.
+docker_manage_daemon_json: false
 docker_enable_buildkit: true
 docker_daemon_json_extra: {}
 docker_service_name: docker.service

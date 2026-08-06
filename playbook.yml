@@ -1,12 +1,16 @@
 ---
 # Omarchy Workstation Playbook
-# Layers on top of Omarchy — never modifies ~/.local/share/omarchy/
+# Targets Omarchy 4 ("Quattro"). bootstrap.sh refuses to run on older releases.
+#
+# Layers on top of Omarchy — never modifies Omarchy's own files. On Quattro
+# those live in /usr/share/omarchy (pacman-owned), with ~/.local/share/omarchy
+# kept as a compatibility symlink.
 #
 # Usage examples:
-#   ./bootstrap.sh                              # Run everything
-#   ansible-playbook playbook.yml --tags zsh   # Run only zsh role
+#   ./bootstrap.sh                                 # Run everything
+#   ansible-playbook playbook.yml --tags zsh       # Run only zsh role
 #   ansible-playbook playbook.yml --tags "zsh,go"  # Run multiple
-#   ansible-playbook playbook.yml --skip-tags mcp  # Skip MCP roles
+#   ansible-playbook playbook.yml --skip-tags packages
 
 - hosts: workstation
   become: true
@@ -27,8 +31,9 @@
     - { role: go, tags: ["go", "dev"] }
 
     # System services
-    - { role: dns, tags: ["dns", "network"] }
-    - { role: nftables, tags: ["nftables", "firewall"] }
+    # NOTE: the dns role was retired — Omarchy 4 owns DNS via omarchy-dns and
+    # already links /etc/resolv.conf to the systemd-resolved stub.
+    - { role: firewall, tags: ["firewall", "ufw", "network"] }
     - { role: wireguard, tags: ["wireguard", "vpn"] }
     - { role: tor_proxy, tags: ["tor_proxy", "network"] }
 
@@ -36,14 +41,12 @@
     - { role: docker_engine, tags: ["docker"] }
 
     # AI Tools
-    - { role: claude_code, tags: ["claude-code", "ai"] }
-    - { role: openai_codex, tags: ["openai-code", "ai"] }
-    - { role: gemini_cli, tags: ["gemini-cli", "ai"] }
-    - { role: pi_coding_agent, tags: ["pi-coding-agent", "ai"] }
+    # Omarchy 4 installs the agent binaries themselves via mise; this role owns
+    # only the config side (legacy cleanup + pi extensions).
+    - { role: agents, tags: ["agents", "ai"] }
     - { role: skills, tags: ["skills", "ai"] }
 
     # Utility (dotfiles, folders, extra links)
     - { role: folders, tags: ["folders"] }
     - { role: dotfiles, tags: ["dotfiles"] }
     - { role: links, tags: ["links"] }
-    #- { role: omarchy_monitor_settings, tags: ["omarchy-monitor"] }

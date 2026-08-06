@@ -1,9 +1,12 @@
 ---
 # Omarchy Workstation Configuration
 #
-# This config layers on top of Omarchy's defaults.
-# Omarchy owns: Hyprland, Waybar, Walker, Mako, Neovim, fonts, audio, SDDM, Ghostty theming
-# Ansible owns: packages, system services, Docker, MCP, security hardening, dotfile symlinks
+# This config layers on top of Omarchy's defaults. Targets Omarchy 4 ("Quattro").
+# Omarchy owns: Hyprland (Lua config), the Quickshell shell (bar/menu/notifications/
+#   lock/OSD), foot, Neovim, fonts, audio, SDDM, themes, the firewall baseline (ufw),
+#   DNS (omarchy-dns), /etc/docker/daemon.json, and coding-agent binaries (via mise).
+# Ansible owns: extra packages, system services, VPN, security hardening,
+#   dotfile symlinks, agent skills/extensions.
 
 # =============================================================================
 # User Configuration
@@ -36,24 +39,22 @@ git_repositories_external: []
 
 # =============================================================================
 # Additional Pacman Packages (not handled by self-contained roles)
-# Packages already provided by Omarchy have been removed:
-#   fzf, fd, bat, ripgrep, htop, unzip, curl, fastfetch, jq
+# Packages already provided by Omarchy 4 have been removed:
+#   fzf, fd, bat, ripgrep, htop, unzip, curl, fastfetch, jq, pacman-contrib,
+#   git, tmux, docker, docker-compose, docker-buildx
 # =============================================================================
 pacman_installed_packages:
   # --- Themes ---
   - adw-gtk-theme
   # --- Additional CLI Tools ---
   - wget
-  - jq
   - tree
   - lsof
-  - bat
   - glow
   - git-delta
   - smartmontools
   - rsync
   - fwupd
-  - pacman-contrib
   # --- Networking ---
   - openssh
   - openssl
@@ -83,16 +84,16 @@ pacman_installed_packages:
 aur_installed_packages:
   - zen-browser-bin
   - google-chrome
-  - lazydocker
   - omnissa-horizon-client
+  # lazydocker removed — shipped in Omarchy 4's base packages
  ## Hardware
  # - tio
  # - kermit
 
 # =============================================================================
 # Additional Folders to Create (via folders role)
-# Removed: hypr, waybar, wofi, dunst, fontconfig, colors, nvim, ghostty, vim
-# These are now managed by Omarchy
+# Omarchy 4 owns: hypr (Lua), the Quickshell shell config, fontconfig, nvim,
+# terminal configs and themes — none of those are created here.
 # =============================================================================
 create_folders:
   - { path: "{{ dotfiles_home }}/Pictures" }
@@ -102,8 +103,6 @@ create_folders:
   - { path: "{{ dotfiles_home }}/Downloads" }
   - { path: "{{ dotfiles_home }}/.config/tmux" }
   - { path: "{{ dotfiles_home }}/.config/tmux-sessionizer" }
-  - { path: "{{ dotfiles_home }}/.config/mcp" }
-  - { path: "{{ dotfiles_home }}/.config/Claude" }
   - { path: "{{ dotfiles_home }}/.local/bin" }
   - { path: "{{ dotfiles_home }}/.zsh" }
 
@@ -119,11 +118,32 @@ dotfiles_links:
 dotfiles_files_binaries:
 
 # =============================================================================
-# DNS Configuration
+# Docker
 # =============================================================================
-dns_provider: "systemd-resolved"
-dns_remove_conflicts: true
-dns_configure_networkmanager: true
+# Omarchy 4 ships /etc/docker/daemon.json as a package-owned file whose dns/bip
+# values are coupled to systemd-resolved (DNSStubListenerExtra=172.17.0.1) and
+# to ufw's container->host DNS rules. Editing it would strand every future
+# Omarchy change in a .pacnew. BuildKit is the default builder since Docker 23,
+# so there is nothing left for us to add.
+docker_manage_daemon_json: false
+
+# =============================================================================
+# Firewall (ufw — Omarchy 4 owns the baseline, we only add rules)
+# =============================================================================
+# Omarchy's install/config/firewall.sh already sets default deny-in/allow-out,
+# opens LocalSend (53317), installs the ufw-docker after.rules block, and allows
+# container->host DNS. Do not reset ufw or set defaults here.
+firewall_allowed_tcp_ports: [22]
+firewall_allowed_udp_ports: []
+
+# The retired nftables role accepted *all* inbound traffic from RFC1918 + link-
+# local ranges. That is far more permissive than Omarchy's baseline, so it is
+# off by default. Set to true to restore the old behaviour.
+firewall_allow_lan: false
+firewall_lan_sources:
+  - "10.0.0.0/8"
+  - "172.16.0.0/12"
+  - "192.168.0.0/16"
 
 # =============================================================================
 # Serial/HW Development

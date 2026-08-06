@@ -278,19 +278,33 @@ Out of scope for this repo but **blocking for a working desktop**, since `roles/
 
 Sequenced so nothing is deleted before its replacement exists, and so the risky steps happen while you can still see the machine.
 
-| Step | Work | Depends on |
+| Step | Work | Status |
 |---|---|---|
-| 1 | Comment/doc fixes (§5) and redundancy removals (§4) — safe, no behaviour change on v3 or v4 | — |
-| 2 | Delete `roles/omarchy_monitor_settings`; strip dead MCP block; drop vestigial folders | 1 |
-| 3 | Write `roles/firewall` (ufw) alongside the existing `nftables` role, not yet in `playbook.yml` | — |
-| 4 | **Upgrade the laptop:** `omarchy-upgrade-to-quattro`, reboot | — |
-| 5 | Set `docker_manage_daemon_json: false`; drop docker packages from role defaults | 4 |
-| 6 | Remove `dns` and `nftables` from `playbook.yml`; enable `firewall`; delete both role dirs | 3, 4 |
-| 7 | Rework agent roles per §3.5, including the `lineinfile: state=absent` PATH cleanup | 4 |
-| 8 | Hard-gate `bootstrap.sh` on Omarchy 4 | 4 |
-| 9 | Dotfiles repo work (§6) | 4 |
+| 1 | ~~Comment/doc fixes (§5) and redundancy removals (§4)~~ | **DONE** |
+| 2 | ~~Delete `roles/omarchy_monitor_settings`; strip dead MCP block; drop vestigial folders~~ | **DONE** — `claude_code` deleted outright (see below) |
+| 3 | ~~Write `roles/firewall` (ufw)~~ | **DONE** |
+| 4 | **Upgrade the laptop:** `omarchy-upgrade-to-quattro`, reboot | **NOT DONE — the only remaining blocker** |
+| 5 | ~~Set `docker_manage_daemon_json: false`; drop docker packages~~ | **DONE** |
+| 6 | ~~Remove `dns`/`nftables` from `playbook.yml`; enable `firewall`; delete both role dirs~~ | **DONE** |
+| 7 | ~~Rework agent roles per §3.5~~ | **DONE** — consolidated into `roles/agents` |
+| 8 | ~~Hard-gate `bootstrap.sh` on Omarchy 4~~ | **DONE** |
+| 9 | Dotfiles repo work (§6) | Partially done in that repo — see its own `PLAN.md` |
 
-Steps 1–3 are safe to do **now**, on 3.8.4, before any upgrade. Everything from step 5 assumes Quattro is live.
+**The repo now targets Omarchy 4 exclusively and will refuse to run on this 3.8.4 machine.**
+Step 4 is a system action, deliberately left for you to run.
+
+### Deviations from the plan as written
+
+- **Open questions 2 and 3 were resolved as "all agents via mise."** With both the
+  pacman install and the dead MCP block removed, `roles/claude_code` had nothing
+  left, so it was deleted rather than emptied. Same for `gemini_cli` and
+  `openai_codex`.
+- **`roles/pi_coding_agent` was replaced by `roles/agents`** rather than slimmed in
+  place. The surviving work — legacy npm-global cleanup and Pi extensions — spans
+  all four old roles, so a single role named for the concern beats leaving that
+  cleanup inside a role named after one agent.
+- **`wg_dns_provider` was left at `auto`** — see §3.2's watch-out. Unresolved; needs
+  checking on a live Quattro system.
 
 ---
 

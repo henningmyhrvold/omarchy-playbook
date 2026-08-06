@@ -1,0 +1,108 @@
+---
+# Firewall Role - Self-contained tasks
+# Adds rules on top of Omarchy 4's ufw baseline.
+
+# =============================================================================
+# Sanity Checks
+# =============================================================================
+- name: Verify ufw is installed
+  ansible.builtin.command: "pacman -Q {{ firewall_package }}"
+  register: _ufw_present
+  changed_when: false
+  failed_when: false
+  tags: ["firewall", "verify"]
+
+- name: Fail if ufw is missing
+  ansible.builtin.fail:
+    msg: >-
+      ufw is not installed. Omarchy 4 ships it in omarchy-base.packages —
+      run omarchy-update, or install it manually before running this role.
+  when: _ufw_present.rc != 0
+  tags: ["firewall", "verify"]
+
+# nftables.service and ufw.service both flush and load the kernel ruleset, so
+# whichever starts last wins. The nftables role was retired in favour of ufw;
+# make sure a leftover enabled unit cannot fight it.
+- name: Check for a leftover nftables service
+  ansible.builtin.command: systemctl is-enabled nftables.service
+  register: _nft_enabled
+  changed_when: false
+  failed_when: false
+  tags: ["firewall", "services"]
+
+- name: Disable leftover nftables service (conflicts with ufw)
+  ansible.builtin.systemd:
+    name: nftables.service
+    enabled: false
+    state: stopped
+  become: true
+  when: _nft_enabled.stdout | trim == "enabled"
+  tags: ["firewall", "services"]
+
+# =============================================================================
+# Rules
+# =============================================================================
+# Deliberately no `ufw --force reset` and no default-policy tasks: Omarchy owns
+# the baseline, and resetting would drop its LocalSend and docker-DNS rules.
+- name: Allow inbound TCP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ firewall_allowed_tcp_ports }}"
+  become: true
+  tags: ["firewall", "rules"]
+
+- name: Allow inbound UDP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: udp
+  loop: "{{ firewall_allowed_udp_ports }}"
+  become: true
+  tags: ["firewall", "rules"]
+
+- name: Allow all inbound traffic from LAN ranges
+  community.general.ufw:
+    rule: allow
+    src: "{{ item }}"
+  loop: "{{ firewall_lan_sources }}"
+  become: true
+  when: firewall_allow_lan | bool
+  tags: ["firewall", "rules"]
+
+# =============================================================================
+# Service
+# =============================================================================
+- name: Ensure ufw is enabled and running
+  ansible.builtin.systemd:
+    name: "{{ firewall_service }}"
+    enabled: true
+    state: started
+  become: true
+  tags: ["firewall", "services"]
+
+# =============================================================================
+# Summary
+# =============================================================================
+- name: Show ufw status
+  ansible.builtin.command: ufw status verbose
+  register: _ufw_status
+  changed_when: false
+  failed_when: false
+  become: true
+  tags: ["firewall", "verify"]
+
+- name: Display firewall summary
+  ansible.builtin.debug:
+    msg: |
+      Firewall (ufw) Configuration:
+      • Added TCP: {{ firewall_allowed_tcp_ports | join(', ') | default('none') }}
+      • Added UDP: {{ firewall_allowed_udp_ports | join(', ') | default('none') }}
+      • LAN accept: {{ 'enabled — ' ~ (firewall_lan_sources | join(', ')) if firewall_allow_lan else 'disabled' }}
+
+      Omarchy owns the baseline (deny-in/allow-out, LocalSend 53317,
+      ufw-docker rules, container->host DNS). This role only adds rules.
+
+      {{ _ufw_status.stdout | default('(status unavailable)') }}
+  tags: ["firewall"]
