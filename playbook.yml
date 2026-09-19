@@ -27,24 +27,20 @@
     - { role: zsh, tags: ["zsh", "shell"] }
 
     # Development tools
-    - { role: vscode, tags: ["vscode", "dev", "editor"] }
-    - { role: go, tags: ["go", "dev"] }
+    #- { role: vscode, tags: ["vscode", "dev", "editor"] }
+    #- { role: go, tags: ["go", "dev"] }
 
     # System services
-    # NOTE: the dns role was retired — Omarchy 4 owns DNS via omarchy-dns and
-    # already links /etc/resolv.conf to the systemd-resolved stub.
     - { role: firewall, tags: ["firewall", "ufw", "network"] }
     - { role: wireguard, tags: ["wireguard", "vpn"] }
     - { role: tor_proxy, tags: ["tor_proxy", "network"] }
 
     # Containers
-    - { role: docker_engine, tags: ["docker"] }
+    #- { role: docker_engine, tags: ["docker"] }
 
     # AI Tools
-    # Omarchy 4 installs the agent binaries themselves via mise; this role owns
-    # only the config side (legacy cleanup + pi extensions).
-    - { role: agents, tags: ["agents", "ai"] }
-    - { role: skills, tags: ["skills", "ai"] }
+    #- { role: agents, tags: ["agents", "ai"] }
+    #- { role: skills, tags: ["skills", "ai"] }
 
     # Utility (dotfiles, folders, extra links)
     - { role: folders, tags: ["folders"] }
