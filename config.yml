@@ -14,6 +14,12 @@ dotfiles_home: "/home/{{ target_user }}"
 configure_dotfiles: true
 configure_extras: true
 configure_repos: true
+configure_desktop: true
+
+# Native Spectra + Ghostty. Live shell setup runs separately in the desktop session.
+spectra_repo: "https://github.com/henningmyhrvold/omarchy-spectra-theme.git"
+spectra_repo_version: "main"
+spectra_repo_dest: "{{ dotfiles_home }}/src/omarchy-spectra-theme"
 
 # =============================================================================
 # Dotfiles Repository (used by multiple roles)
@@ -97,7 +103,7 @@ dotfiles_links:
   - { src: "zsh/.p10k.zsh", dest: ".p10k.zsh" }
 
 # Files that should be marked as executable
-dotfiles_files_binaries:
+dotfiles_files_binaries: []
 
 # =============================================================================
 # Firewall (ufw — Omarchy 4 owns the baseline, we only add rules)

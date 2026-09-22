@@ -17,6 +17,21 @@
   vars_files:
     - config.yml
 
+  pre_tasks:
+    - name: Read installed Omarchy version
+      ansible.builtin.command: omarchy version
+      register: omarchy_version
+      changed_when: false
+      check_mode: false
+      become: false
+      tags: [always]
+
+    - name: Require Omarchy 4
+      ansible.builtin.assert:
+        that: omarchy_version.stdout is match('^4\.')
+        fail_msg: "This collection targets a stock Omarchy 4 installation."
+      tags: [always]
+
   roles:
     # Core packages (your additions on top of Omarchy)
     - { role: pacman, tags: ["pacman", "packages"] }
@@ -46,3 +61,4 @@
     - { role: folders, tags: ["folders"] }
     - { role: dotfiles, tags: ["dotfiles"] }
     - { role: links, tags: ["links"] }
+    - { role: desktop, tags: ["desktop", "theme"], when: configure_desktop | default(true) | bool }

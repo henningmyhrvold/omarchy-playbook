@@ -29,7 +29,6 @@
     update: false
   become: true
   become_user: "{{ dotfiles_user }}"
-  ignore_errors: true
   tags: ["dotfiles", "repo"]
 
 # =============================================================================
@@ -46,7 +45,6 @@
   loop: "{{ dotfiles_links | default(dotfiles_default_links) }}"
   become: true
   become_user: "{{ dotfiles_user }}"
-  ignore_errors: true
   tags: ["dotfiles", "symlinks"]
 
 # =============================================================================
@@ -57,8 +55,7 @@
     path: "{{ dotfiles_repo_dest }}/{{ item }}"
     mode: "0755"
   with_items: "{{ dotfiles_files_binaries }}"
-  when: dotfiles_files_binaries is defined and dotfiles_files_binaries | length > 0
+  when: dotfiles_files_binaries | default([], true) | length > 0
   become: true
   become_user: "{{ dotfiles_user }}"
-  ignore_errors: true
   tags: ["dotfiles", "binaries"]

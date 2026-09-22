@@ -1,0 +1,82 @@
+---
+- name: Install preferred terminal
+  community.general.pacman:
+    name: ghostty
+    state: present
+
+- name: Prepare user checkout directories
+  ansible.builtin.file:
+    path: "{{ desktop_home }}/src"
+    state: directory
+    mode: "0755"
+  become_user: "{{ desktop_user }}"
+
+- name: Check out desktop repositories without overwriting local work
+  ansible.builtin.git:
+    repo: "{{ item.repo }}"
+    dest: "{{ item.dest }}"
+    version: "{{ item.version }}"
+    force: false
+    update: false
+  loop:
+    - repo: "{{ dotfiles_repo }}"
+      dest: "{{ desktop_dotfiles_dest }}"
+      version: "{{ dotfiles_repo_version }}"
+    - repo: "{{ spectra_repo }}"
+      dest: "{{ spectra_repo_dest }}"
+      version: "{{ spectra_repo_version }}"
+  become_user: "{{ desktop_user }}"
+
+- name: Seed missing Ghostty configuration from the installed Omarchy defaults
+  ansible.builtin.copy:
+    src: /usr/share/omarchy/config/ghostty/
+    dest: "{{ desktop_home }}/.config/ghostty/"
+    remote_src: true
+    force: false
+    mode: preserve
+  become_user: "{{ desktop_user }}"
+
+- name: Select Ghostty as the default terminal
+  ansible.builtin.copy:
+    dest: "{{ desktop_home }}/.config/xdg-terminals.list"
+    content: |
+      # Preferred terminal; foot remains a fallback.
+      com.mitchellh.ghostty.desktop
+      foot.desktop
+    mode: "0644"
+    backup: true
+  become_user: "{{ desktop_user }}"
+
+- name: Link the local Spectra checkout with backup of any previous installation
+  ansible.builtin.command:
+    argv:
+      - python
+      - "{{ desktop_dotfiles_dest }}/scripts/config-edit.py"
+      - link
+      - "{{ desktop_home }}/.config/omarchy/themes/spectra"
+      - "{{ spectra_repo_dest }}"
+  become_user: "{{ desktop_user }}"
+  register: desktop_theme_link
+  changed_when: "'Changed:' in desktop_theme_link.stdout"
+  when: not ansible_check_mode
+
+- name: Apply persistent terminal preferences
+  ansible.builtin.command:
+    argv: [bash, "{{ desktop_dotfiles_dest }}/omarchy-hooks/theme-set"]
+  become_user: "{{ desktop_user }}"
+  environment:
+    HOME: "{{ desktop_home }}"
+    OMARCHY_PATH: /usr/share/omarchy
+    HYPRLAND_INSTANCE_SIGNATURE: ""
+  register: desktop_terminal
+  changed_when: "'Changed:' in desktop_terminal.stdout"
+  when: not ansible_check_mode
+
+- name: Show desktop activation command
+  ansible.builtin.debug:
+    msg: >-
+      In your logged-in Omarchy session, run:
+      SPECTRA_THEME_DIR={{ spectra_repo_dest | quote }} bash
+      {{ (desktop_dotfiles_dest + '/scripts/omarchy-mods-desktop.sh') | quote }}.
+      This installs the Arch menu clone, input/blur settings, theme hook, and
+      activates Spectra with backups. It can be run repeatedly.

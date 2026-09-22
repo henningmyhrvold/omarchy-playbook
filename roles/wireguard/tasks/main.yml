@@ -1,7 +1,7 @@
 ---
 - name: Install WireGuard userspace tools
   become: true
-  ansible.builtin.pacman:
+  community.general.pacman:
     name:
       - wireguard-tools
     state: present
@@ -56,7 +56,7 @@
 
 - name: Set fact whether DNS lines exist
   ansible.builtin.set_fact:
-    wg_conf_has_dns: "{{ (wg_conf_content['content'] | b64decode).splitlines() | select('match', '^[[:space:]]*DNS[[:space:]]*=') | list | length > 0 }}"
+    wg_conf_has_dns: "{{ (wg_conf_content['content'] | b64decode).splitlines() | select('match', '^\\s*DNS\\s*=') | list | length > 0 }}"
   when: wg_conf.stat.exists
 
 - name: Install DNS provider for wg-quick (auto/openresolv/systemd-resolved)
@@ -66,17 +66,17 @@
     or (wg_dns_provider == 'systemd-resolved')
     or (wg_dns_provider == 'auto' and wg_conf.stat.exists and wg_conf_has_dns)
   block:
-    - name: Ensure openresolv is installed (chosen or auto)
-      ansible.builtin.pacman:
+    - name: Ensure openresolv is installed (explicit opt-in)
+      community.general.pacman:
         name: openresolv
         state: present
-      when: wg_dns_provider in ['openresolv', 'auto']
+      when: wg_dns_provider == 'openresolv'
 
-    - name: Ensure systemd-resolvconf is installed (explicitly chosen)
-      ansible.builtin.pacman:
+    - name: Use systemd-resolved's resolvconf compatibility for wg-quick
+      community.general.pacman:
         name: systemd-resolvconf
         state: present
-      when: wg_dns_provider == 'systemd-resolved'
+      when: wg_dns_provider in ['systemd-resolved', 'auto']
 
 # --- Killswitch scripts and helpers ---
 
@@ -228,4 +228,3 @@
   when:
     - wg_enable_service | bool
     - wg_conf_2.stat.exists
-

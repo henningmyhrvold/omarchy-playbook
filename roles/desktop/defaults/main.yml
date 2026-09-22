@@ -1,0 +1,7 @@
+---
+desktop_user: "{{ target_user | default(ansible_facts['user_id']) }}"
+desktop_home: "/home/{{ desktop_user }}"
+desktop_dotfiles_dest: "{{ dotfiles_repo_local_destination | default(desktop_home + '/src/omarchy-dotfiles') }}"
+spectra_repo: "https://github.com/henningmyhrvold/omarchy-spectra-theme.git"
+spectra_repo_version: main
+spectra_repo_dest: "{{ desktop_home }}/src/omarchy-spectra-theme"

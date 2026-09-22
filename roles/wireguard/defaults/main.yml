@@ -8,4 +8,5 @@ wg_load_module: true
 wg_killswitch_enable: true
 wg_install_helpers: true
 wg_killswitch_allow_lan_cidr: ""
-wg_dns_provider: "auto"
+# Omarchy 4 owns DNS through systemd-resolved; don't install conflicting openresolv.
+wg_dns_provider: "systemd-resolved"
