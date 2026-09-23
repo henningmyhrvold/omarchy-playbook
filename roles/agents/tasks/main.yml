@@ -3,46 +3,6 @@
 # Config-side only. Omarchy 4 (mise) owns the agent binaries.
 
 # =============================================================================
-# Legacy Cleanup — must run before anything resolves an agent binary
-# =============================================================================
-- name: Remove legacy npm-global PATH line from .bashrc
-  ansible.builtin.lineinfile:
-    path: "{{ agents_home }}/.bashrc"
-    line: "{{ agents_legacy_path_line }}"
-    state: absent
-  become: true
-  become_user: "{{ agents_user }}"
-  failed_when: false
-  tags: ["agents", "cleanup", "config"]
-
-- name: Remove stale npm-global agent binaries
-  ansible.builtin.file:
-    path: "{{ agents_legacy_npm_prefix }}/bin/{{ item }}"
-    state: absent
-  loop: "{{ agents_legacy_binaries }}"
-  become: true
-  become_user: "{{ agents_user }}"
-  tags: ["agents", "cleanup"]
-
-- name: Warn if a legacy npm-global PATH entry survives in zsh
-  ansible.builtin.command: "grep -l npm-global {{ agents_home }}/.zshrc"
-  register: _zshrc_npm
-  changed_when: false
-  failed_when: false
-  become: true
-  become_user: "{{ agents_user }}"
-  tags: ["agents", "cleanup", "verify"]
-
-- name: Report surviving zsh PATH entry
-  ansible.builtin.debug:
-    msg: >-
-      WARNING: {{ agents_home }}/.zshrc still prepends ~/.npm-global/bin, which
-      shadows Omarchy's mise shims. That file is a symlink into the
-      omarchy-dotfiles repo — remove the line there, not here.
-  when: _zshrc_npm.rc == 0
-  tags: ["agents", "cleanup", "verify"]
-
-# =============================================================================
 # Verify the mise shims Omarchy is expected to provide
 # =============================================================================
 - name: Check for the pi shim installed by Omarchy

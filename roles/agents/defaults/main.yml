@@ -16,20 +16,6 @@
 agents_user: "{{ target_user | default(ansible_facts['user_id']) }}"
 agents_home: "/home/{{ agents_user }}"
 
-# =============================================================================
-# Legacy cleanup
-# =============================================================================
-# Where the old roles installed agents before the handover to mise.
-agents_legacy_npm_prefix: "{{ agents_home }}/.npm-global"
-
-# Binaries the old roles left in ~/.npm-global/bin. Removed so a stale copy
-# cannot win over the mise shim.
-agents_legacy_binaries:
-  - pi
-  - gemini
-  - codex
-  - claude
-
 # The old roles appended `export PATH="~/.npm-global/bin:$PATH"` to ~/.bashrc.
 # Because it lands at the end of the file it prepends, beating both mise's
 # shim dir and Omarchy's ~/.local/bin. Removed here for one release cycle.

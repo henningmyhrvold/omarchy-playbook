@@ -41,17 +41,10 @@
     # Shell (installs zsh + oh-my-zsh + p10k — does NOT chsh)
     - { role: zsh, tags: ["zsh", "shell"] }
 
-    # Development tools
-    #- { role: vscode, tags: ["vscode", "dev", "editor"] }
-    #- { role: go, tags: ["go", "dev"] }
-
     # System services
     - { role: firewall, tags: ["firewall", "ufw", "network"] }
     - { role: wireguard, tags: ["wireguard", "vpn"] }
     - { role: tor_proxy, tags: ["tor_proxy", "network"] }
-
-    # Containers
-    #- { role: docker_engine, tags: ["docker"] }
 
     # AI Tools
     #- { role: agents, tags: ["agents", "ai"] }
