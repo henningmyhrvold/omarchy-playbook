@@ -78,5 +78,5 @@
       In your logged-in Omarchy session, run:
       SPECTRA_THEME_DIR={{ spectra_repo_dest | quote }} bash
       {{ (desktop_dotfiles_dest + '/scripts/omarchy-mods-desktop.sh') | quote }}.
-      This installs the Arch menu clone, input/blur settings, theme hook, and
-      activates Spectra with backups. It can be run repeatedly.
+      This installs input/blur settings, theme hook, and activates Spectra
+      with backups. It can be run repeatedly.
